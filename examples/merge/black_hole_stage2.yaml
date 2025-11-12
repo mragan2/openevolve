@@ -1,0 +1,116 @@
+# Stage 2: Aggressive Optimization
+# Goal: Break through performance plateaus with proven baselines
+# Strategy: Higher temperature, larger population, exploration focus
+
+random_seed: 43              # Different seed for stage 2
+log_level: "INFO"
+output_dir: "output"
+
+# -----------------------------------------------------------------
+# Task configuration
+# -----------------------------------------------------------------
+task: "black_hole"           # Black hole information paradox task
+
+# -----------------------------------------------------------------
+# Stage 2 EA settings - Aggressive (FAST TEST)
+# -----------------------------------------------------------------
+population_size: 30          # Larger population for diversity
+max_generations: 30          # REDUCED for faster test (was 30)
+
+# -----------------------------------------------------------------
+# LLM configuration - Higher temperature for creativity
+# -----------------------------------------------------------------
+llm:
+  default_block: local
+
+  local:
+    api_host: "http://localhost"
+    api_base: "http://localhost:11434/v1"
+    temperature: 0.7         # Higher for creative solutions
+    max_tokens: 2048         # More tokens for complex code
+    timeout: 90
+
+  cloud:
+    api_key: "${OLLAMA_API_KEY}"
+    api_host: "https://ollama.com"
+    api_base: "https://ollama.com/v1"
+    temperature: 0.7
+    max_tokens: 2048
+    timeout: 90
+
+  agent_models:
+    code_generator: "deepseek-r1:7b"
+    prompt_designer: "llama3.2:3b"
+    evaluator: "gpt-oss:120b-cloud"
+    selection: "gemma2:9b"
+    task_manager: "mistral:7b"
+
+  per_agent_params:
+    code_generator: {block: local, temperature: 0.65, max_tokens: 2048, timeout: 90}
+    prompt_designer: {block: local, temperature: 0.8, max_tokens: 1024}
+    selection: {block: local, temperature: 0.3, max_tokens: 512}
+    task_manager: {block: local, temperature: 0.4, max_tokens: 512}
+    evaluator:
+      block: cloud
+      temperature: 0.2
+      max_tokens: 2048
+      timeout: 90
+      think: "medium"
+
+# -----------------------------------------------------------------
+# Stage 2 Evolutionary parameters - Exploration focus
+# -----------------------------------------------------------------
+evolutionary:
+  elitism_count: 3           # Less elitism for more exploration
+  mutation_rate: 0.75        # Higher mutation for breakthrough
+  tournament_size: 5         # Larger tournament for quality
+
+# -----------------------------------------------------------------
+# Islands configuration (ENABLED for Stage 2)
+# -----------------------------------------------------------------
+islands:
+  enabled: true
+  num_islands: 5
+  migration_interval: 5
+  migration_size: 2
+
+# -----------------------------------------------------------------
+# Database MAP-Elites settings - Larger archive
+# -----------------------------------------------------------------
+database:
+  feature_dimensions:
+    - "complexity"
+    - "diversity"
+    - "performance"
+    - "accuracy"
+  archive_size: 50           # Larger archive for stage 2
+
+# -----------------------------------------------------------------
+# Evaluation pipeline - Full evaluation with rich artifacts
+# -----------------------------------------------------------------
+evaluator:
+  enable_artifacts: true         # Capture detailed execution feedback
+  cascade_evaluation: true
+  cascade_thresholds: [0.6, 0.8]  # Stricter thresholds
+  use_llm_feedback: true         # Enable LLM-based improvement suggestions
+  artifact_detail_level: "high"  # Include all diagnostic information
+
+# -----------------------------------------------------------------
+# Prompt curation - Diversity focus
+# -----------------------------------------------------------------
+prompt:
+  num_top_programs: 4
+  num_diverse_programs: 3
+  include_artifacts: true
+  template_dir: "custom_prompts/"
+  use_template_stochasticity: true  # Stochastic for exploration
+
+# -----------------------------------------------------------------
+# Code evaluation parameters - Extended resources
+# -----------------------------------------------------------------
+evaluation:
+  timeout: 45                # Longer timeout for complex solutions
+  max_memory_mb: 1024        # More memory
+  enable_sandboxing: true
+  kill_on_timeout: true
+  capture_stderr: true
