@@ -18,6 +18,7 @@ Cascade support:
 from __future__ import annotations
 
 import ast
+import logging
 import math
 import os
 import runpy
@@ -34,6 +35,24 @@ REQUIRED_FUNCTIONS = [
     "H_squared_with_quantum",
     "run_sanity_checks",
 ]
+
+
+def _float_env(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _bool_env(name: str) -> bool:
+    return os.environ.get(name, "0").lower() in {"1", "true", "yes", "on"}
+
+
+LOGGER = logging.getLogger(__name__)
+LOG_LOW_SCORE_DETAILS = _bool_env("OPENEVOLVE_LOG_LOW_SCORES")
+LOW_SCORE_THRESHOLD = _float_env("OPENEVOLVE_LOW_SCORE_THRESHOLD", 0.4)
+H0_RATIO_TOLERANCE = max(_float_env("OPENEVOLVE_H0_RATIO_TOLERANCE", 1.5), 1e-6)
+RHO_Q_TODAY_TOLERANCE = max(_float_env("OPENEVOLVE_RHO_Q_TOLERANCE", 2.0), 1e-6)
 
 
 # ---------------------------------------------------------------------------
@@ -85,39 +104,40 @@ def _extract_evolve_block(source: str) -> str:
             fuzzy = ("rho" in name) or ("quant" in name) or ("q" == name)
             if not (exact or fuzzy):
                 continue
-                # Prefer end_lineno when available (Python 3.8+)
-                if hasattr(node, "end_lineno") and node.end_lineno is not None:
-                    start_idx = node.lineno - 1
-                    end_idx = node.end_lineno
-                    block = "\n".join(lines[start_idx:end_idx]).strip()
-                    if block:
-                        return block
 
-                # Try ast.get_source_segment() if available
-                try:
-                    seg = ast.get_source_segment(source, node)
-                    if seg and seg.strip():
-                        return seg.strip()
-                except Exception:
-                    pass
-
-                # Best-effort manual range: capture until the next top-level def
+            # Prefer end_lineno when available (Python 3.8+)
+            if hasattr(node, "end_lineno") and node.end_lineno is not None:
                 start_idx = node.lineno - 1
-                def_indent = len(lines[start_idx]) - len(lines[start_idx].lstrip())
-                end_idx = start_idx + 1
-                for i in range(start_idx + 1, len(lines)):
-                    line = lines[i]
-                    if not line.strip():
-                        end_idx = i + 1
-                        continue
-                    indent = len(line) - len(line.lstrip())
-                    if indent <= def_indent and line.lstrip().startswith("def "):
-                        break
-                    end_idx = i + 1
-
+                end_idx = node.end_lineno
                 block = "\n".join(lines[start_idx:end_idx]).strip()
                 if block:
                     return block
+
+            # Try ast.get_source_segment() if available
+            try:
+                seg = ast.get_source_segment(source, node)
+                if seg and seg.strip():
+                    return seg.strip()
+            except Exception:
+                pass
+
+            # Best-effort manual range: capture until the next top-level def
+            start_idx = node.lineno - 1
+            def_indent = len(lines[start_idx]) - len(lines[start_idx].lstrip())
+            end_idx = start_idx + 1
+            for i in range(start_idx + 1, len(lines)):
+                line = lines[i]
+                if not line.strip():
+                    end_idx = i + 1
+                    continue
+                indent = len(line) - len(line.lstrip())
+                if indent <= def_indent and line.lstrip().startswith("def "):
+                    break
+                end_idx = i + 1
+
+            block = "\n".join(lines[start_idx:end_idx]).strip()
+            if block:
+                return block
     except Exception:
         # AST parsing can fail on malformed candidates; fall through to line-scan
         pass
@@ -137,22 +157,22 @@ def _extract_evolve_block(source: str) -> str:
             continue
         # treat this as the evolve block candidate
         # (covers def rho_q, def rho_quantum, def rhoQuantum, etc.)
-            start_idx = idx
-            def_indent = len(line) - len(line.lstrip())
-            end_idx = start_idx + 1
-            for i in range(start_idx + 1, len(lines)):
-                l = lines[i]
-                if not l.strip():
-                    end_idx = i + 1
-                    continue
-                indent = len(l) - len(l.lstrip())
-                if indent <= def_indent and l.lstrip().startswith("def "):
-                    break
+        start_idx = idx
+        def_indent = len(line) - len(line.lstrip())
+        end_idx = start_idx + 1
+        for i in range(start_idx + 1, len(lines)):
+            l = lines[i]
+            if not l.strip():
                 end_idx = i + 1
+                continue
+            indent = len(l) - len(l.lstrip())
+            if indent <= def_indent and l.lstrip().startswith("def "):
+                break
+            end_idx = i + 1
 
-            block = "\n".join(lines[start_idx:end_idx]).strip()
-            if block:
-                return block
+        block = "\n".join(lines[start_idx:end_idx]).strip()
+        if block:
+            return block
 
     # 4) Final heuristic: if the file contains a top-level code section that
     #    looks like a function body (indented lines referencing 'a' or 'm_g'),
@@ -382,10 +402,32 @@ def _rho_profile_variation_score(ns: Dict[str, Any]) -> float:
         return 0.0
 
 
+def _log_low_score_details(checks: Dict[str, float], metrics: Dict[str, float]) -> None:
+    if not LOG_LOW_SCORE_DETAILS:
+        return
+
+    combined = float(metrics.get("combined_score", 0.0))
+    if combined >= LOW_SCORE_THRESHOLD:
+        return
+
+    LOGGER.info(
+        "Low-score candidate (combined=%.3f): ratio_H0=%.3f, rho_q_today=%.3e, H_early=%.3e, monotonic=%.3f, rho_var=%.3f",
+        combined,
+        float(checks.get("ratio_H0", 0.0)),
+        float(checks.get("rho_q_today_over_crit0", 0.0)),
+        float(checks.get("H_at_early_a", 0.0)),
+        float(metrics.get("monotonic_H_score", 0.0)),
+        float(metrics.get("rho_profile_variation_score", 0.0)),
+    )
+
+
 def _full_metric_bundle(ns: Dict[str, Any], functions_present_score: float) -> Dict[str, float]:
     checks = _run_sanity_metrics(ns)
-    H0_ratio_score = max(0.0, 1.0 - abs(checks["ratio_H0"] - 1.0))
-    rho_q_today_score = max(0.0, 1.0 - min(max(checks["rho_q_today_over_crit0"], 0.0), 1.0))
+    H0_ratio_delta = abs(checks["ratio_H0"] - 1.0)
+    H0_ratio_score = max(0.0, 1.0 - H0_ratio_delta / H0_RATIO_TOLERANCE)
+    rho_today = max(checks["rho_q_today_over_crit0"], 0.0)
+    rho_q_today_penalty = min(rho_today / RHO_Q_TODAY_TOLERANCE, 1.0)
+    rho_q_today_score = max(0.0, 1.0 - rho_q_today_penalty)
     early_domination_score = 1.0 if checks["H_at_early_a"] > 1e-12 else 0.0
     quantum_small_early_score = rho_q_today_score
     monotonic_H_score = _monotonic_H_score(ns)
@@ -401,7 +443,7 @@ def _full_metric_bundle(ns: Dict[str, Any], functions_present_score: float) -> D
     )
     combined_score = float(max(0.0, min(1.0, combined_score)))
 
-    return {
+    metrics = {
         "functions_present_score": float(functions_present_score),
         "H0_ratio_score": float(H0_ratio_score),
         "rho_q_today_score": float(rho_q_today_score),
@@ -411,6 +453,8 @@ def _full_metric_bundle(ns: Dict[str, Any], functions_present_score: float) -> D
         "rho_profile_variation_score": float(rho_profile_variation_score),
         "combined_score": float(combined_score),
     }
+    _log_low_score_details(checks, metrics)
+    return metrics
 
 
 # ---------------------------------------------------------------------------

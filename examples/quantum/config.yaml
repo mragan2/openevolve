@@ -25,7 +25,7 @@ llm:
   models:
     - name: "qwen2.5-coder:7b"
       weight: 0.6
-    - name: "mistral:7b"
+    - name: "deepseek-coder:6.7b"
       weight: 0.4
 
   # Optional: evaluator_models (if omitted, config.py copies `models` to `evaluator_models`)
@@ -64,6 +64,10 @@ prompt:
       - It is acceptable to trade a small temporary loss in H0 alignment if you are probing qualitatively new dependencies on a, H_classical, or m_g.
       - Use mixtures of power laws, exponentials, and smooth transitions to explore new early/late-time behaviour; ensure the density stays finite and sign-controlled.
       - Avoid trivial rescalings of the baseline profile—each proposal should introduce a genuine conceptual change.
+    PHYSICAL CONSTRAINT REMINDERS:
+      - For 0.05 <= a <= 0.3 the quantum density must remain at most a few percent of the local critical density; keep it smooth and strictly non-negative.
+      - rho_quantum should never flip the sign of H_classical or make H(a) non-monotonic; rely on smooth tapers instead of abrupt sign changes.
+      - Any code that introduces randomness, undefined symbols, or discontinuities will be discarded before evaluation—focus on deterministic, well-behaved profiles.
   evaluator_system_message: "evaluator_system_message"
   num_top_programs: 1
   num_diverse_programs: 6
