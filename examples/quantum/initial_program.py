@@ -167,55 +167,49 @@ def classical_H_squared(a: float, params: CosmologyParams) -> float:
 
 def rho_quantum(a: float, H_classical: float, m_g: float) -> float:
     """
-    Effective quantum correction ρ_q(a, H, m_g).
+    Effective quantum correction ρ_q(a, H_classical, m_g).
 
-    This is the ONLY function that OpenEvolve is allowed to modify.
+    This implementation is tuned for the second phase of evolution. It retains
+    physical plausibility while further suppressing the present-day and early
+    contributions compared to earlier candidates. The correction scales with
+    the squared mass ratio and decays exponentially with the scale factor. A
+    very small amplitude ensures that the quantum term has a negligible
+    influence on the Hubble parameter today, improving the H0 alignment and
+    reducing the quantum fraction at a=1.
 
-    Inputs
-    ------
+    Parameters
+    ----------
     a : float
-        Scale factor (a = 1 today).
+        Scale factor (a > 0).
     H_classical : float
-        Classical Hubble parameter (without quantum term) in [s^-1].
+        Classical Hubble parameter (s⁻¹) without quantum corrections.
     m_g : float
-        Graviton mass in kg.
+        Graviton mass (kg).
 
-    Output
-    ------
+    Returns
+    -------
     float
-        Quantum correction energy density ρ_q in [kg/m^3].
-
-    Baseline implementation:
-        - Produces a small, positive density that behaves like a
-          dark-energy–like component tied to (m_g / m_g_ref)^2.
-        - Decays mildly toward the past (a < 1) and saturates at late times.
+        Quantum energy density ρ_q in [kg/m³].
     """
-    if a <= 0.0:
-        raise ValueError("Scale factor 'a' must be positive in rho_quantum.")
+    # Guard against non-physical inputs
+    if a <= 0.0 or m_g <= 0.0:
+        return 0.0
 
-    # Dimensionless mass ratio relative to a reference scale
-    if m_g <= 0.0:
-        mass_factor = 0.0
-    else:
-        mass_factor = (m_g / M_G_REF) ** 2
+    # Local critical density at the given Hubble rate
+    rho_crit = critical_density(H_classical)
 
-    # Use the classical critical density at this H as a scale
-    rho_crit_local = critical_density(H_classical)
+    # Choose a very small amplitude so the quantum term remains subdominant
+    amplitude = 1e-6
 
-    # Make the quantum term:
-    #   - small fraction of local critical density
-    #   - slightly growing toward late times (a → 1)
-    #   - suppressed in the deep past (a << 1)
-    #
-    # f(a) = a^β / (1 + a^β), with β ~ O(1).
-    beta = 1.0
-    a_beta = a ** beta
-    time_profile = a_beta / (1.0 + a_beta)
+    # Exponential decay with scale factor; ensures the correction decreases
+    # smoothly toward the future (a → ∞) and does not blow up at early times
+    decay_factor = exp(-a)
 
-    # Overall amplitude: 1% of critical density, rescaled by mass_factor.
-    amplitude = 0.01
+    # Dimensionless mass ratio squared
+    mass_ratio = (m_g / M_G_REF) ** 2
 
-    rho_q = amplitude * mass_factor * time_profile * rho_crit_local
+    # Compute the quantum density
+    rho_q = amplitude * mass_ratio * decay_factor * rho_crit
     return rho_q
 
 # EVOLVE-BLOCK-END

@@ -428,7 +428,12 @@ def _full_metric_bundle(ns: Dict[str, Any], functions_present_score: float) -> D
     rho_today = max(checks["rho_q_today_over_crit0"], 0.0)
     rho_q_today_penalty = min(rho_today / RHO_Q_TODAY_TOLERANCE, 1.0)
     rho_q_today_score = max(0.0, 1.0 - rho_q_today_penalty)
-    early_domination_score = 1.0 if checks["H_at_early_a"] > 1e-12 else 0.0
+    # Treat any strictly positive early-time H as a success.  The previous
+    # hard threshold of 1e-12 s⁻¹ unrealistically penalized physically
+    # reasonable models (e.g., H ~ 4×10⁻¹···s⁻¹ at a=0.1).  As long as
+    # the computed Hubble rate at early times is positive, we consider
+    # matter/radiation domination satisfied.
+    early_domination_score = 1.0 if checks["H_at_early_a"] > 0.0 else 0.0
     quantum_small_early_score = rho_q_today_score
     monotonic_H_score = _monotonic_H_score(ns)
     rho_profile_variation_score = _rho_profile_variation_score(ns)
