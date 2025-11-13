@@ -118,8 +118,7 @@ try:
     with open({results_path!r}, "wb") as f:
         pickle.dump(safe, f)
     print("Results saved to", {results_path!r})
-
-    except Exception as e:
+except Exception as e:
     print("Error in subprocess:", str(e))
     traceback.print_exc()
     with open({results_path!r}, "wb") as f:
