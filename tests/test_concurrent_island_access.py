@@ -119,7 +119,7 @@ class TestConcurrentIslandAccess(unittest.TestCase):
         if race_conditions_found:
             print("✅ Successfully reproduced the race condition from issue #246")
         else:
-            print("⚠️ Race condition not reproduced - may need more iterations or different timing")
+            print("� ️ Race condition not reproduced - may need more iterations or different timing")
     
     def test_sequential_island_access_works_correctly(self):
         """Test that sequential access works without issues using safe sampling"""

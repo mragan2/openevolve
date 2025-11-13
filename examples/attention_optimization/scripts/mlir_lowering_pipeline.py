@@ -249,7 +249,7 @@ def main():
         print(f"\n📋 Quick test:")
         print(f"   mlir-translate --mlir-to-llvmir {lowered_file}")
     else:
-        print("\n⚠️ Lowering failed. You may need to:")
+        print("\n� ️ Lowering failed. You may need to:")
         print("1. Check which conversion passes are available in your MLIR build")
         print("2. Manually inspect the MLIR file for unsupported constructs")
         print("3. Use alternative approaches like the dialect converter")

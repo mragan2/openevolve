@@ -109,7 +109,7 @@ def test_mlir_file():
                 if 'output_shape' in content:
                     print("✅ tensor.expand_shape syntax is fixed")
                 else:
-                    print("⚠️ tensor.expand_shape may need fixing")
+                    print("� ️ tensor.expand_shape may need fixing")
                 
                 return True
         except Exception as e:
@@ -155,7 +155,7 @@ def main():
         print("   python ../../openevolve-run.py initial_program.py evaluator.py --config config.yaml --iterations 10")
         print("\n🎯 Target: Achieve 32% speedup (1.32x) like AlphaEvolve paper")
     else:
-        print(f"\n⚠️ {len(results) - passed} test(s) failed. Fix issues before running evolution.")
+        print(f"\n� ️ {len(results) - passed} test(s) failed. Fix issues before running evolution.")
     
     return passed == len(results)
 

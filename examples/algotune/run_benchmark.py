@@ -351,7 +351,7 @@ def main():
         tasks_to_run = [t for t in requested_tasks if t in all_tasks]
         missing_tasks = [t for t in requested_tasks if t not in all_tasks]
         if missing_tasks:
-            print(f"⚠️  Warning: Tasks not found: {missing_tasks}")
+            print(f"� ️  Warning: Tasks not found: {missing_tasks}")
     else:
         tasks_to_run = all_tasks
     

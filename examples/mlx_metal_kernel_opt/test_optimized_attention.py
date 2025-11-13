@@ -77,7 +77,7 @@ def load_custom_attention_class(program_path: str):
         try:
             exec_globals["mlx_lm"] = __import__("mlx_lm")
         except ImportError:
-            print("⚠️  Could not import mlx_lm, RoPE may not work")
+            print("� ️  Could not import mlx_lm, RoPE may not work")
 
         # Execute the program
         exec(program_text, exec_globals)
@@ -258,7 +258,7 @@ def run_mlx_lm_generation(
 
         # Check if we got meaningful results
         if not found_generation_stats or generation_tokens == 0:
-            print("⚠️  No generation statistics found in output")
+            print("� ️  No generation statistics found in output")
             if debug:
                 print(f"found_prompt_stats: {found_prompt_stats}")
                 print(f"found_generation_stats: {found_generation_stats}")
@@ -328,7 +328,7 @@ def run_comparison_test(
 
     # Check if we have valid results
     if standard_result["generation_tokens"] == 0:
-        print("⚠️  Warning: Standard attention generated 0 tokens")
+        print("� ️  Warning: Standard attention generated 0 tokens")
         print("   This might indicate an issue with the model or prompt")
         print("   Generated text preview:")
         print(f"   '{standard_result['generated_text'][:100]}'")
@@ -374,7 +374,7 @@ def run_comparison_test(
             ) * 100
         else:
             speed_improvement = 0.0
-            print("⚠️  Cannot calculate speed improvement (standard speed was 0)")
+            print("� ️  Cannot calculate speed improvement (standard speed was 0)")
 
         memory_change = optimized_result["peak_memory"] - standard_result["peak_memory"]
 
@@ -403,7 +403,7 @@ def run_comparison_test(
         elif standard_result["generation_speed"] == 0 and optimized_result["generation_speed"] > 0:
             print("🔥 Optimized version works where standard failed!")
         else:
-            print("⚠️  No improvement or regression")
+            print("� ️  No improvement or regression")
 
         # Show generated text comparison
         print(f"\n📝 GENERATED TEXT COMPARISON:")
@@ -425,9 +425,9 @@ def run_comparison_test(
             if standard_result["generated_text"][:100] == optimized_result["generated_text"][:100]:
                 print("✅ Generated text is identical (good!)")
             else:
-                print("⚠️  Generated text differs (check randomness/temperature)")
+                print("� ️  Generated text differs (check randomness/temperature)")
         elif not standard_result["generated_text"] and not optimized_result["generated_text"]:
-            print("⚠️  Both versions generated no text")
+            print("� ️  Both versions generated no text")
         else:
             print("ℹ️  Different text generation behavior")
 

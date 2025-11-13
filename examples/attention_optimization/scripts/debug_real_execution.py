@@ -106,7 +106,7 @@ def test_actual_mlir_file():
                         print(f"   Error: {result.stderr[:500]}...")
                         return False
                 else:
-                    print("⚠️ mlir-translate not available")
+                    print("� ️ mlir-translate not available")
                     return False
             else:
                 print("❌ Basic optimization failed:")

@@ -461,7 +461,7 @@ def print_comparison_summary(comparison_results):
         f"  🔵 Standard MLX-LM:     {summary['avg_standard_decode_speed']:.1f} tokens/sec average"
     )
     print(
-        f"  🟠 Metal Kernel Optimized: {summary['avg_optimized_decode_speed']:.1f} tokens/sec average"
+        f"  �  Metal Kernel Optimized: {summary['avg_optimized_decode_speed']:.1f} tokens/sec average"
     )
     print(
         f"  📈 Net Improvement:     {summary['avg_optimized_decode_speed'] - summary['avg_standard_decode_speed']:+.1f} tokens/sec"
@@ -497,7 +497,7 @@ def print_comparison_summary(comparison_results):
         elif decode_imp > 0:
             marker = "✅"
         else:
-            marker = "⚠️"
+            marker = "� ️"
 
         print(
             f"{marker} {name:<28} {std_decode:<12.1f} {opt_decode:<12.1f} {decode_imp:+<12.1f} {mem_imp:+<12.1f} {time_imp:+<12.1f}"
@@ -549,7 +549,7 @@ def print_comparison_summary(comparison_results):
             f"  💭 {summary['avg_decode_improvement_pct']:.1f}% suggests room for further optimization"
         )
     else:
-        print(f"  ⚠️  No overall improvement detected")
+        print(f"  � ️  No overall improvement detected")
         print(f"  🔧 Consider running additional evolution cycles or different strategies")
 
     # Technical insights
@@ -557,7 +557,7 @@ def print_comparison_summary(comparison_results):
     print(f"  💡 Custom Metal Kernel Strategy:")
     print(f"     • Standard: mx.fast.scaled_dot_product_attention")
     print(f"     • Optimized: Hand-written Metal kernel with vectorized operations")
-    print(f"  🧠 Potential Reasons for Performance Gains:")
+    print(f"  �  Potential Reasons for Performance Gains:")
     print(f"     • Optimized memory access patterns for Apple Silicon")
     print(f"     • Vectorized operations using vec<T, 8> types")
     print(f"     • Better cache locality with custom computation order")

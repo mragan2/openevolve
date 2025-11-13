@@ -279,7 +279,7 @@ class CustomGQAAttention(nn.Module):
                 max_position_embeddings=args.max_position_embeddings,
             )
         except ImportError:
-            print("⚠️ Could not import mlx_lm rope_utils, using basic RoPE")
+            print("� ️ Could not import mlx_lm rope_utils, using basic RoPE")
             self.rope = None
 
         print(f"🔧 Initialized Custom Metal GQA Attention")

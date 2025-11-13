@@ -149,7 +149,7 @@
 #         print("\n🎉 All MLIR syntax tests passed!")
 #         print("✅ Ready to run AlphaEvolve evolution")
 #     else:
-#         print("\n⚠️ Some tests failed. Check MLIR installation.")
+#         print("\n� ️ Some tests failed. Check MLIR installation.")
         
 #     print("\n📋 If tests passed, run:")
 #     print("python openevolve-run.py fixed_initial_program.py fixed_evaluator.py --iterations 10")
@@ -306,7 +306,7 @@ if __name__ == "__main__":
         print("\n🎉 All MLIR syntax tests passed!")
         print("✅ Ready to run AlphaEvolve evolution")
     else:
-        print("\n⚠️ Some tests failed. Check MLIR installation.")
+        print("\n� ️ Some tests failed. Check MLIR installation.")
         
     print("\n📋 If tests passed, run:")
     print("python openevolve-run.py fixed_initial_program.py fixed_evaluator.py --iterations 10")

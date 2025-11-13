@@ -73,7 +73,7 @@ def run_quick_test():
             warmup_result = benchmark_suite.run_single_benchmark(warmup_config)
             print(f"   ✅ Global warmup completed")
         except Exception as e:
-            print(f"   ⚠️  Global warmup failed: {e}")
+            print(f"   � ️  Global warmup failed: {e}")
             print(f"   Continuing with individual tests...")
 
         results = []

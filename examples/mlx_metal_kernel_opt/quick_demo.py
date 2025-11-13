@@ -64,7 +64,7 @@ def main():
         except subprocess.CalledProcessError:
             print("❌ Test failed")
         except KeyboardInterrupt:
-            print("\n⚠️  Demo interrupted")
+            print("\n� ️  Demo interrupted")
             break
 
         if i < len(tests):

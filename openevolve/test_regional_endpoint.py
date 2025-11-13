@@ -78,7 +78,7 @@ def test_endpoint_detection():
         print("🎉 All tests PASSED! The fix is working correctly.")
         return True
     else:
-        print("⚠️ Some tests FAILED! Please review the logic.")
+        print("� ️ Some tests FAILED! Please review the logic.")
         return False
 
 if __name__ == "__main__":

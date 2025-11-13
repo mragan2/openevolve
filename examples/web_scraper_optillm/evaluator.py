@@ -320,7 +320,7 @@ def generate_feedback(metrics: Dict[str, float], artifacts: Dict[str, Any]) -> s
 
     # Accuracy feedback
     if metrics["accuracy"] < 0.5:
-        feedback.append("⚠️ **Low Accuracy**: The scraper is missing many expected functions.")
+        feedback.append("� ️ **Low Accuracy**: The scraper is missing many expected functions.")
         feedback.append(
             "Consider improving the HTML parsing logic to handle different documentation formats."
         )
@@ -337,12 +337,12 @@ def generate_feedback(metrics: Dict[str, float], artifacts: Dict[str, Any]) -> s
 
     # Completeness feedback
     if metrics["completeness"] < 0.5:
-        feedback.append("⚠️ **Low Completeness**: Not extracting enough functions overall.")
+        feedback.append("� ️ **Low Completeness**: Not extracting enough functions overall.")
         feedback.append("Increase the limit or improve the search scope.")
 
     # Robustness feedback
     if metrics["robustness"] < 0.8:
-        feedback.append("⚠️ **Low Robustness**: The scraper fails on some HTML formats.")
+        feedback.append("� ️ **Low Robustness**: The scraper fails on some HTML formats.")
         feedback.append("Add try-catch blocks and handle different documentation structures.")
         feedback.append("Consider multiple parsing strategies and fallback methods.")
 

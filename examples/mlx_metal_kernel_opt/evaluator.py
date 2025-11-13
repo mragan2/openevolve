@@ -99,7 +99,7 @@ class BulletproofMetalEvaluator:
         print(f"📱 Model: {self.model_path}")
         print(f"🔁 Max retry attempts: {self.max_retry_attempts}")
         print(f"⚡ GPU error protection: MAXIMUM")
-        print(f"🧠 Memory safety validation: ENABLED")
+        print(f"�  Memory safety validation: ENABLED")
         print(f"🎯 Command buffer error handling: ACTIVE")
 
     def evaluate(self, program_text: str) -> Dict[str, Any]:
@@ -141,7 +141,7 @@ class BulletproofMetalEvaluator:
             print("\n🔍 STEP 2: Pre-execution Metal Kernel Safety Validation")
             safety_result = self._validate_metal_kernel_safety(custom_attention_class)
             if not safety_result["success"]:
-                print(f"⚠️  Metal kernel safety validation failed: {safety_result['error']}")
+                print(f"� ️  Metal kernel safety validation failed: {safety_result['error']}")
                 print("🛡️  Proceeding with enhanced protection...")
 
             # Step 3: GPU-protected baseline measurement
@@ -258,7 +258,7 @@ class BulletproofMetalEvaluator:
             metal_validation = self._static_validate_metal_kernel_syntax(actual_program_text)
             if not metal_validation["safe"]:
                 print(
-                    f"  ⚠️  Metal kernel static validation warning: {metal_validation['warnings']}"
+                    f"  � ️  Metal kernel static validation warning: {metal_validation['warnings']}"
                 )
 
             # Create ultra-safe execution environment
@@ -353,7 +353,7 @@ class BulletproofMetalEvaluator:
 
             # Check if it inherits from nn.Module (recommended)
             if not issubclass(custom_class, nn.Module):
-                print("  ⚠️  CustomGQAAttention doesn't inherit from nn.Module")
+                print("  � ️  CustomGQAAttention doesn't inherit from nn.Module")
 
             print("  ✅ Custom attention class validation passed")
             return {"valid": True}
@@ -666,7 +666,7 @@ class BulletproofMetalEvaluator:
 
             # Timeout check (soft limit)
             if elapsed_time > self.kernel_validation_timeout:
-                print(f"        ⚠️  Slow execution detected: {elapsed_time:.2f}s")
+                print(f"        � ️  Slow execution detected: {elapsed_time:.2f}s")
                 return 0.5  # Partial credit for slow but working kernel
 
             # Enhanced output validation
@@ -685,7 +685,7 @@ class BulletproofMetalEvaluator:
                 if finite_ratio < 0.9:
                     raise ValueError(f"Too many non-finite values: {finite_ratio:.2%} finite")
                 else:
-                    print(f"        ⚠️  Some non-finite values: {finite_ratio:.2%} finite")
+                    print(f"        � ️  Some non-finite values: {finite_ratio:.2%} finite")
                     return 0.7  # Partial credit
 
             # Enhanced statistical validation
@@ -695,15 +695,15 @@ class BulletproofMetalEvaluator:
 
             # More lenient bounds for complex kernels
             if abs(output_mean) > 10.0:
-                print(f"        ⚠️  Large mean: {output_mean:.6f}")
+                print(f"        � ️  Large mean: {output_mean:.6f}")
                 return 0.6
 
             if output_std > 100.0 or output_std < 0.00001:
-                print(f"        ⚠️  Unusual std: {output_std:.6f}")
+                print(f"        � ️  Unusual std: {output_std:.6f}")
                 return 0.6
 
             if output_max > 1000.0:
-                print(f"        ⚠️  Large max value: {output_max:.6f}")
+                print(f"        � ️  Large max value: {output_max:.6f}")
                 return 0.7
 
             # All checks passed
@@ -845,7 +845,7 @@ class BulletproofMetalEvaluator:
             time.sleep(0.1)
 
         except Exception as e:
-            print(f"    ⚠️  GPU state cleanup warning: {e}")
+            print(f"    � ️  GPU state cleanup warning: {e}")
 
     def _gpu_protected_apply_hook(self, custom_attention_class: Any) -> Dict[str, Any]:
         """GPU-protected application of custom attention hook"""
@@ -889,10 +889,10 @@ class BulletproofMetalEvaluator:
             )
 
             if not success:
-                print(f"      ⚠️  Hook removal warning: {result}")
+                print(f"      � ️  Hook removal warning: {result}")
 
         except Exception as e:
-            print(f"      ⚠️  Hook removal error (non-fatal): {e}")
+            print(f"      � ️  Hook removal error (non-fatal): {e}")
 
     def _remove_attention_hook_safely(self, original_attention: Any):
         """Safely remove attention hook"""
@@ -925,9 +925,9 @@ class BulletproofMetalEvaluator:
             exec_globals["mlx_lm"] = __import__("mlx_lm")
             print("  ✅ MLX-LM imported for bulletproof execution")
         except ImportError:
-            print("  ⚠️  MLX-LM not available for bulletproof execution")
+            print("  � ️  MLX-LM not available for bulletproof execution")
         except Exception as e:
-            print(f"  ⚠️  MLX-LM import error in bulletproof environment: {e}")
+            print(f"  � ️  MLX-LM import error in bulletproof environment: {e}")
 
         return exec_globals
 
@@ -955,7 +955,7 @@ class BulletproofMetalEvaluator:
             return safe_configs
 
         except Exception as e:
-            print(f"  ⚠️  Error getting safe benchmark configs: {e}")
+            print(f"  � ️  Error getting safe benchmark configs: {e}")
             return []
 
     def _ensure_standard_attention(self):
@@ -967,7 +967,7 @@ class BulletproofMetalEvaluator:
                 qwen3_module.Attention = self._original_attention
                 print("  🔄 Restored standard attention for baseline")
         except ImportError:
-            print("  ⚠️  Could not access qwen3 module for standard attention")
+            print("  � ️  Could not access qwen3 module for standard attention")
 
     def _store_enhanced_baseline_metrics(self, baseline_results: List[BenchmarkResult]):
         """Store enhanced baseline metrics"""
@@ -1228,7 +1228,7 @@ class BulletproofMetalEvaluator:
         elif self.total_metal_errors < 3:
             summary += f"\n🛡️  GOOD SAFETY: {self.total_metal_errors} Metal errors handled"
         else:
-            summary += f"\n⚠️  SAFETY CONCERNS: {self.total_metal_errors} Metal errors handled"
+            summary += f"\n� ️  SAFETY CONCERNS: {self.total_metal_errors} Metal errors handled"
 
         if avg_improvement >= 15:
             summary += "\n🎯 EXCELLENT: 15%+ improvement achieved!"
@@ -1239,7 +1239,7 @@ class BulletproofMetalEvaluator:
         elif avg_improvement > 0:
             summary += "\n📈 MINOR IMPROVEMENT: Some speedup achieved"
         else:
-            summary += "\n⚠️  NO IMPROVEMENT: Performance regression"
+            summary += "\n� ️  NO IMPROVEMENT: Performance regression"
 
         return summary
 

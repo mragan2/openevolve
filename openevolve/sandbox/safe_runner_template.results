@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "C:\Users\Michal\Documents\GitHub\openevolve\openevolve\sandbox\safe_runner_template.py", line 29, in main
+    spec.loader.exec_module(program)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+  File "<frozen importlib._bootstrap_external>", line 1023, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1160, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1218, in get_data
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Temp\\tmprjmfp1jy.py'

@@ -1,38 +1,33 @@
-"""
+﻿"""
 Evaluator for Black Hole Information & Semiclassical Unification
-Based on the Circle Packing evaluator template.
+Conforms to README requirements:
+- Returns a DICTIONARY with 'combined_score' (primary metric)
+- Always includes 'combined_score' even on error
+- Adds 'error' on failure for traceability
+- Uses Windows-safe quoting for temp wrapper paths
 """
 
-import importlib.util
+from __future__ import annotations
+
 import numpy as np
 import time
 import os
-import signal
 import subprocess
 import tempfile
 import traceback
 import sys
 import pickle
+from typing import Dict, Any
 
 
 class TimeoutError(Exception):
     pass
 
 
-def timeout_handler(signum, frame):
-    """Handle timeout signal"""
-    raise TimeoutError("Function execution timed out")
-
-
-def validate_results(results):
+def validate_results(results: Dict[str, Any]) -> bool:
     """
     Validate the output dictionary from the black hole simulation.
-
-    Args:
-        results: Dictionary containing simulation data
-
-    Returns:
-        True if valid, False otherwise
+    Required keys: 'time', 'S_rad_bits', 'kappa'
     """
     if not isinstance(results, dict):
         print("Output is not a dictionary")
@@ -44,301 +39,257 @@ def validate_results(results):
             print(f"Missing required key: {key}")
             return False
 
-    # Check for NaN values in arrays
+    # time and S_rad_bits must be list/array without NaN
     for key in ["time", "S_rad_bits"]:
         arr = results[key]
-        if isinstance(arr, (list, np.ndarray)):
-            if np.isnan(arr).any():
-                print(f"NaN values detected in {key}")
-                return False
-        else:
+        if not isinstance(arr, (list, np.ndarray)):
             print(f"{key} is not a list or numpy array")
             return False
+        arr = np.asarray(arr, dtype=float)
+        if np.isnan(arr).any():
+            print(f"NaN values detected in {key}")
+            return False
 
-    # Check kappa
+    # kappa must be finite number
     kappa = results["kappa"]
-    if not isinstance(kappa, (int, float)):
-        print(f"kappa is not a number: {type(kappa)}")
-        return False
-    
-    if np.isnan(kappa):
-        print("kappa is NaN")
+    if not isinstance(kappa, (int, float)) or not np.isfinite(kappa):
+        print(f"Invalid kappa: {kappa}")
         return False
 
     return True
 
 
-def run_with_timeout(program_path, timeout_seconds=20):
+def run_with_timeout(program_path: str, timeout_seconds: int = 30) -> Dict[str, Any]:
     """
-    Run the program in a separate process with timeout
-    using a simple subprocess approach.
-
-    Args:
-        program_path: Path to the program file
-        timeout_seconds: Maximum execution time in seconds
-
-    Returns:
-        The results dictionary from evolve_page_and_unify()
+    Run the candidate program in a separate Python process with a timeout.
+    Writes a short wrapper that imports the program and calls evolve_page_and_unify().
+    Uses repr(...) when embedding paths so Windows backslashes are escaped.
     """
-    # Create a temporary file to execute
+    # Make a temp wrapper script
     with tempfile.NamedTemporaryFile(suffix=".py", delete=False) as temp_file:
-        # Write a script that executes the program and saves results
-        script = f"""
-import sys
-import numpy as np
-import os
-import pickle
-import traceback
+        wrapper_path = temp_file.name
 
-# Add the directory to sys.path
-sys.path.insert(0, os.path.dirname('{program_path}'))
+    results_path = f"{wrapper_path}.results"
 
-# Debugging info
+    # Windows-safe embedding of paths using !r (repr)
+    wrapper_code = f"""
+import sys, os, pickle, traceback, importlib.util
 print(f"Running in subprocess, Python version: {{sys.version}}")
-print(f"Program path: {program_path}")
-
+print("Program path:", {program_path!r})
+sys.path.insert(0, os.path.dirname({program_path!r}))
 try:
-    # Import the program
-    spec = __import__('importlib.util').util.spec_from_file_location("program", '{program_path}')
-    program = __import__('importlib.util').util.module_from_spec(spec)
+    # Read the candidate program bytes and robustly decode them so
+    # Python can import the file even if it's not UTF-8 encoded.
+    cleaned_path = {program_path!r} + ".cleaned"
+    with open({program_path!r}, "rb") as pf:
+        raw = pf.read()
+    try:
+        text = raw.decode("utf-8")
+    except Exception:
+        try:
+            text = raw.decode("latin-1")
+        except Exception:
+            text = raw.decode("utf-8", errors="replace")
+    with open(cleaned_path, "w", encoding="utf-8") as cf:
+        cf.write(text)
+
+    spec = importlib.util.spec_from_file_location("program", cleaned_path)
+    program = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(program)
-    
-    # Run the main evolution function
-    print("Calling evolve_page_and_unify()...")
-    
-    # Try to construct a config if the class exists, otherwise call with defaults
+
+    # Call main entry
     if hasattr(program, 'EvaporationConfig'):
-        print("Found EvaporationConfig, using test configuration...")
-        # Use a slightly smaller grid for faster evaluation
         config = program.EvaporationConfig(grid_points=200, M0=5.0)
         results = program.evolve_page_and_unify(config)
     else:
-        print("EvaporationConfig not found, calling with defaults...")
         results = program.evolve_page_and_unify()
-        
-    print(f"evolve_page_and_unify() returned successfully.")
 
-    # Ensure results are pickle-able (convert sympy objects if necessary or exclude them)
-    # We mainly care about the numerical data for evaluation
-    safe_results = {{}}
+    # Keep only pickle-safe items (avoid heavy/symbolic objects)
+    safe = {{}}
     for k, v in results.items():
         if k == 'unified_equation':
-            # Store string representation of symbolic equation to avoid pickle issues with SymPy across processes
-            safe_results[k] = str(v)
+            safe[k] = str(v)
         elif k == 'config':
-            # Config might be a dataclass, skip it or convert to dict if needed, 
-            # but for eval we mostly need the arrays. Let's skip complex objects.
-            pass
+            # Skip or stringify config
+            continue
         else:
-            safe_results[k] = v
+            safe[k] = v
 
-    with open('{temp_file.name}.results', 'wb') as f:
-        pickle.dump(safe_results, f)
-    print(f"Results saved to {temp_file.name}.results")
-    
-except Exception as e:
-    # If an error occurs, save the error instead
-    print(f"Error in subprocess: {{str(e)}}")
+    with open({results_path!r}, "wb") as f:
+        pickle.dump(safe, f)
+    print("Results saved to", {results_path!r})
+
+    except Exception as e:
+    print("Error in subprocess:", str(e))
     traceback.print_exc()
-    with open('{temp_file.name}.results', 'wb') as f:
+    with open({results_path!r}, "wb") as f:
         pickle.dump({{'error': str(e)}}, f)
-    print(f"Error saved to {temp_file.name}.results")
+    print("Error saved to", {results_path!r})
+finally:
+    try:
+        if os.path.exists(cleaned_path):
+            os.unlink(cleaned_path)
+    except Exception:
+        pass
 """
-        temp_file.write(script.encode())
-        temp_file_path = temp_file.name
 
-    results_path = f"{temp_file_path}.results"
+    # Write wrapper code
+    with open(wrapper_path, "w", encoding="utf-8") as f:
+        f.write(wrapper_code)
 
     try:
-        # Run the script with timeout
-        process = subprocess.Popen(
-            [sys.executable, temp_file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        proc = subprocess.Popen(
+            [sys.executable, wrapper_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
-
         try:
-            stdout, stderr = process.communicate(timeout=timeout_seconds)
-            exit_code = process.returncode
-
-            # Always print output for debugging purposes
-            print(f"Subprocess stdout: {stdout.decode()}")
-            if stderr:
-                print(f"Subprocess stderr: {stderr.decode()}")
-
-            # Still raise an error for non-zero exit codes
-            if exit_code != 0:
-                raise RuntimeError(f"Process exited with code {exit_code}")
-
-            # Load the results
-            if os.path.exists(results_path):
-                with open(results_path, "rb") as f:
-                    results = pickle.load(f)
-
-                # Check if an error was returned
-                if "error" in results:
-                    raise RuntimeError(f"Program execution failed: {results['error']}")
-
-                return results
-            else:
-                raise RuntimeError("Results file not found")
-
+            stdout, stderr = proc.communicate(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
-            # Kill the process if it times out
-            process.kill()
-            process.wait()
+            proc.kill()
+            proc.wait()
             raise TimeoutError(f"Process timed out after {timeout_seconds} seconds")
 
+        # Always show child output for debugging
+        if stdout:
+            print("Subprocess stdout:", stdout)
+        if stderr:
+            print("Subprocess stderr:", stderr)
+
+        if proc.returncode != 0:
+            raise RuntimeError(f"Process exited with code {proc.returncode}")
+
+        if not os.path.exists(results_path):
+            raise RuntimeError("Results file not found")
+
+        with open(results_path, "rb") as f:
+            results = pickle.load(f)
+
+        if isinstance(results, dict) and "error" in results:
+            raise RuntimeError(f"Program execution failed: {results['error']}")
+
+        return results
+
     finally:
-        # Clean up temporary files
-        if os.path.exists(temp_file_path):
-            os.unlink(temp_file_path)
-        if os.path.exists(results_path):
-            os.unlink(results_path)
+        # Cleanup
+        for p in (wrapper_path, results_path):
+            try:
+                if p and os.path.exists(p):
+                    os.unlink(p)
+            except Exception:
+                pass
 
 
-def evaluate(program_path):
+def evaluate(program_path: str) -> Dict[str, Any]:
     """
-    Evaluate the black hole simulation program.
-
-    Args:
-        program_path: Path to the program file
-
-    Returns:
-        Dictionary of metrics
+    Full evaluation used by Stage 2 and also valid for Stage 1.
+    Returns a DICT with 'combined_score' as the primary metric.
     """
     try:
-        start_time = time.time()
-
-        # Use subprocess to run with timeout
-        results = run_with_timeout(
-            program_path, timeout_seconds=30  # Should be fast
-        )
-
-        end_time = time.time()
-        eval_time = end_time - start_time
+        t0 = time.time()
+        results = run_with_timeout(program_path, timeout_seconds=30)
+        t1 = time.time()
+        eval_time = t1 - t0
 
         if not results:
-            print("No results returned.")
             return {
+                "combined_score": 0.0,
                 "validity": 0.0,
                 "page_curve_score": 0.0,
                 "physics_consistency": 0.0,
                 "eval_time": float(eval_time),
-                "combined_score": 0.0,
+                "kappa_value": 0.0,
+                "error": "No results returned",
             }
 
-        # Validate structure
         valid = validate_results(results)
         if not valid:
             return {
+                "combined_score": 0.0,
                 "validity": 0.0,
                 "page_curve_score": 0.0,
                 "physics_consistency": 0.0,
                 "eval_time": float(eval_time),
-                "combined_score": 0.0,
+                "kappa_value": 0.0,
+                "error": "Invalid results structure",
             }
 
-        # --- Physics Checks ---
-        
-        # 1. Page Curve Shape Analysis
-        S_rad = np.array(results["S_rad_bits"])
-        
-        # Information recovery check: Entropy should eventually decrease
-        # Specifically, final entropy should be significantly lower than max entropy
-        max_entropy = np.max(S_rad)
-        final_entropy = S_rad[-1]
-        
-        # Page curve score: 1.0 if information returns (final < 0.1 * max), 
-        # scaled down if it stays high (which would imply information loss)
-        if max_entropy > 1e-6:
+        # ----- Metrics -----
+        S_rad = np.asarray(results["S_rad_bits"], dtype=float)
+        max_entropy = float(np.max(S_rad))
+        final_entropy = float(S_rad[-1])
+
+        # Page-curve recovery score in [0,1]
+        if max_entropy > 1e-12:
             recovery_ratio = 1.0 - (final_entropy / max_entropy)
-            # Clip to [0, 1] just in case
             page_curve_score = float(np.clip(recovery_ratio, 0.0, 1.0))
         else:
             page_curve_score = 0.0
 
-        # 2. Semiclassical Consistency (Kappa)
-        kappa = results["kappa"]
-        
-        # Kappa represents the coupling required to save unitarity.
-        # It should be finite. If it's extremely large, the approximation might be breaking down.
-        # If it's zero, there's no backreaction (which might be wrong for this model).
-        physics_consistency = 0.0
-        if np.isfinite(kappa):
-            # Check if it's within a "sane" magnitude (heuristic)
-            if 1e-5 < abs(kappa) < 1000.0:
-                physics_consistency = 1.0
-            else:
-                physics_consistency = 0.5 # Penalize extreme values
-        
-        # 3. Unified Equation Check
-        has_equation = "unified_equation" in results and results["unified_equation"] is not None
-        equation_bonus = 0.1 if has_equation else 0.0
+        kappa = float(results["kappa"])
+        if np.isfinite(kappa) and 1e-5 < abs(kappa) < 1000.0:
+            physics_consistency = 1.0
+        else:
+            physics_consistency = 0.5 if np.isfinite(kappa) else 0.0
 
-        # Combined score
-        validity = 1.0
-        combined_score = (validity * 0.3) + (page_curve_score * 0.4) + (physics_consistency * 0.3) + equation_bonus
-        combined_score = min(1.0, combined_score) # Cap at 1.0
+        validity = 1.0  # passed structure checks
 
-        print(
-            f"Evaluation: valid={valid}, max_S={max_entropy:.2f}, final_S={final_entropy:.2f}, "
-            f"kappa={kappa:.4e}, score={combined_score:.4f}, time={eval_time:.2f}s"
+        # Combined score (cap at 1.0)
+        combined_score = min(
+            1.0,
+            (validity * 0.3) + (page_curve_score * 0.4) + (physics_consistency * 0.3)
+            + (0.1 if "unified_equation" in results and results["unified_equation"] else 0.0)
         )
 
         return {
+            "combined_score": float(combined_score),     # REQUIRED
+            # Additional raw metrics (usable as feature_dimensions)
             "validity": float(validity),
             "page_curve_score": float(page_curve_score),
             "physics_consistency": float(physics_consistency),
             "kappa_value": float(kappa),
             "eval_time": float(eval_time),
-            "combined_score": float(combined_score),
         }
 
     except Exception as e:
-        print(f"Evaluation failed completely: {str(e)}")
+        print(f"Evaluation failed completely: {e}")
         traceback.print_exc()
         return {
-            "validity": 0.0,
+            "combined_score": 0.0,   # REQUIRED even on error
             "page_curve_score": 0.0,
             "physics_consistency": 0.0,
             "eval_time": 0.0,
-            "combined_score": 0.0,
+            "validity": 0.0,
+            "kappa_value": 0.0,
+            "error": str(e),
         }
 
 
-def evaluate_stage1(program_path):
+def evaluate_stage1(program_path: str) -> Dict[str, Any]:
     """
-    First stage evaluation - quick validation check
+    Fast validation stage.
+    Still returns a DICT with 'combined_score'.
     """
     try:
-        # Use the subprocess approach with a short timeout
         results = run_with_timeout(program_path, timeout_seconds=15)
+        if not validate_results(results):
+            return {"combined_score": 0.0, "page_curve_score": 0.0, "physics_consistency": 0.0, "eval_time": 0.0, "validity": 0.0, "kappa_value": 0.0, "error": "Invalid results structure"}
 
-        valid = validate_results(results)
-        
-        if not valid:
-             return {"validity": 0.0, "combined_score": 0.0, "error": "Invalid results structure"}
-
-        # Check if S_rad is not empty and has data
         S_rad = results.get("S_rad_bits", [])
-        if len(S_rad) == 0:
-            return {"validity": 0.5, "combined_score": 0.0, "error": "Empty entropy array"}
+        if not isinstance(S_rad, (list, np.ndarray)) or len(S_rad) == 0:
+            return {"combined_score": 0.0, "page_curve_score": 0.0, "physics_consistency": 0.0, "eval_time": 0.0, "validity": 0.0, "kappa_value": 0.0, "error": "Empty entropy array"}
 
-        return {
-            "validity": 1.0,
-            "sum_radii": 0.0, # Legacy key for compatibility if needed
-            "combined_score": 1.0, # Pass if it runs and returns valid structure
-        }
+        # Quick pass: it ran and produced sane structure
+        return {"combined_score": 1.0, "validity": 1.0, "page_curve_score": 1.0, "physics_consistency": 1.0, "eval_time": 0.0, "kappa_value": 0.0}
 
     except TimeoutError as e:
-        print(f"Stage 1 evaluation timed out: {e}")
-        return {"validity": 0.0, "combined_score": 0.0, "error": "Timeout"}
+        return {"combined_score": 0.0, "page_curve_score": 0.0, "physics_consistency": 0.0, "eval_time": 0.0, "validity": 0.0, "kappa_value": 0.0, "error": f"Timeout: {e}"}
     except Exception as e:
-        print(f"Stage 1 evaluation failed: {e}")
-        return {"validity": 0.0, "combined_score": 0.0, "error": str(e)}
+        return {"combined_score": 0.0, "page_curve_score": 0.0, "physics_consistency": 0.0, "eval_time": 0.0, "validity": 0.0, "kappa_value": 0.0, "error": str(e)}
 
 
-def evaluate_stage2(program_path):
-    """
-    Second stage evaluation - full physics evaluation
-    """
+def evaluate_stage2(program_path: str) -> Dict[str, Any]:
+    """Full physics evaluation."""
     return evaluate(program_path)
+

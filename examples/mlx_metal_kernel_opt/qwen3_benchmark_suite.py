@@ -589,7 +589,7 @@ Given this comprehensive overview of the current state and future directions of 
                     print(f"   Warmup run {i+1}/{WARMUP_RUNS}...")
                     warmup_result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
                     if warmup_result.returncode != 0:
-                        print(f"   ⚠️  Warmup run {i+1} failed: {warmup_result.stderr[:100]}...")
+                        print(f"   � ️  Warmup run {i+1} failed: {warmup_result.stderr[:100]}...")
                     else:
                         print(f"   ✅ Warmup run {i+1} completed")
 
