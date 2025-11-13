@@ -1,0 +1,88 @@
+# Configuration for semiclassical cosmology / quantum correction evolution
+
+# ------------ General settings ------------
+max_iterations: 1000
+checkpoint_interval: 25
+log_level: "INFO"
+random_seed: 42
+file_suffix: ".py"          # default, but explicit is fine
+diff_based_evolution: false # allow full rewrites instead of diffs
+max_code_length: 100000
+
+# ------------ LLM configuration ------------
+llm:
+  # Shared API configuration for all models
+  api_base: "http://localhost:11434/v1"
+  api_key: "YOUR_KEY_OR_DUMMY"   # Ollama ignores this, but field must exist or be omitted
+  temperature: 0.7
+  top_p: 0.95
+  max_tokens: 4096
+  timeout: 600
+  retries: 3
+  retry_delay: 5
+
+  # Ensemble of models used for evolution
+  models:
+    - name: "qwen2.5-coder:7b"
+      weight: 0.7
+    - name: "mistral:7b"
+      weight: 0.3
+
+  # Optional: evaluator_models (if omitted, config.py copies `models` to `evaluator_models`)
+  # evaluator_models:
+  #   - name: "qwen2.5-coder:7b"
+  #     weight: 1.0
+
+# ------------ Prompt configuration ------------
+prompt:
+  system_message: |
+    You are a theoretical physicist and numerical cosmologist specializing in:
+      - General Relativity (Einstein field equations)
+      - Quantum field theory in curved spacetime
+      - Massive gravity and constraints on the graviton mass
+      - Cosmological background dynamics (Friedmann equations, ΛCDM)
+
+    You are helping evolve an effective quantum correction ρ_q(a, H, m_g)
+    that modifies the Friedmann equation in a controlled, physically-motivated way.
+  evaluator_system_message: "evaluator_system_message"
+  num_top_programs: 4
+  num_diverse_programs: 2
+  use_template_stochasticity: true
+
+# ------------ Database / evolution settings ------------
+database:
+  in_memory: true
+  population_size: 70         # MAP-Elites population
+  archive_size: 30
+  num_islands: 5
+  elite_selection_ratio: 0.3
+  exploration_ratio: 0.3      # you had only exploitation before; keep sum ≤ 1
+  exploitation_ratio: 0.6
+  feature_dimensions: ["complexity", "diversity"]
+  feature_bins: 10
+  migration_interval: 50
+  migration_rate: 0.1
+  log_prompts: true
+
+# ------------ Evaluator configuration ------------
+evaluator:
+  timeout: 90
+  max_retries: 3
+  cascade_evaluation: true
+  cascade_thresholds: [0.5, 0.8]   # we only use stage1 & stage2
+  parallel_evaluations: 4
+  distributed: false
+  use_llm_feedback: false           # keep this OFF for now
+  llm_feedback_weight: 0.1
+  enable_artifacts: true
+  max_artifact_storage: 104857600   # 100MB
+
+# ------------ Evolution trace (optional) ------------
+evolution_trace:
+  enabled: false
+  format: "jsonl"
+  include_code: false
+  include_prompts: true
+  output_path: null
+  buffer_size: 10
+  compress: false

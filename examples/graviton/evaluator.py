@@ -282,6 +282,7 @@ def _evaluate_core(program_path: str) -> Dict[str, Any]:
         "sanity_checks_score": sanity_checks_score,
         "eval_time": float(eval_time),
     }
+    
     return metrics
 
 

@@ -1,6 +1,6 @@
 # Configuration for massive graviton / dark energy evolution
-max_iterations: 1000
-checkpoint_interval: 100
+max_iterations: 2500
+checkpoint_interval: 10
 log_level: "INFO"
 
 # LLM configuration
@@ -11,12 +11,13 @@ llm:
       weight: 0.6
     - name: "mistral:7b"
       weight: 0.4
-  temperature: 0.7
+  
   api_base: "http://localhost:11434/v1"
   api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'
+  temperature: 0.7
   top_p: 0.95
   max_tokens: 4096     # keep this lower for Ollama
-  timeout: 900
+  timeout: 600
 
 # Prompt configuration
 prompt:
@@ -116,23 +117,21 @@ prompt:
 
 # Database configuration
 database:
-  population_size: 60  # Increased population for more diversity
-  num_islands: 4
-  migration_interval: 20
+  population_size: 200  # Increased population for more diversity
+  archive_size: 25
+  num_islands: 5
+  elite_selection_ratio: 0.3
   exploitation_ratio: 0.7
 
 # Evaluator configuration
 evaluator:
-  enable_artifacts: true      # Error feedback to LLM
-  cascade_evaluation: true    # Multi-stage testing
-  use_llm_feedback: true      # AI code quality assessment
+  timeout: 300
+  cascade_evaluation: true
+  cascade_thresholds: [0.5, 0.75]
+  parallel_evaluations: 4
+  use_llm_feedback: false
 
-prompt:
-  # Sophisticated inspiration system
-  num_top_programs: 3         # Best performers
-  num_diverse_programs: 2     # Creative exploration
-  include_artifacts: true     # Execution feedback
-    # Custom templates
-  template_dir: "custom_prompts/"
-  use_template_stochasticity: true  # Randomized prompts
+# Evolution settings
+diff_based_evolution: false  # Use full rewrites instead of diffs
+allow_full_rewrites: true    # Allow full rewrites for constructor functions
 
