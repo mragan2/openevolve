@@ -1,0 +1,163 @@
+# Stage 1: Conservative Baseline Establishment (with advanced options)
+random_seed: 42
+max_iterations: 500
+checkpoint_interval: 25
+log_level: "INFO"
+max_code_length: 32000
+
+# LLM configuration (you can still override via CLI)
+llm:
+  primary_model: "qwen2.5-coder:7b"
+  primary_model_weight: 0.6
+  secondary_model: "mistral:7b"
+  secondary_model_weight: 0.4
+  api_base: "http://localhost:11434/v1"
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 32000
+  timeout: 900
+
+# Database / MAP-Elites
+database:
+  population_size: 25
+  num_islands: 5
+  migration_interval: 5
+  archive_size: 25
+
+  # MUST match evaluator metric keys (raw, not binned)
+  feature_dimensions:
+    - "page_curve_score"
+    - "eval_time"
+    - "physics_consistency"
+    # To enable these later, ensure your evaluator returns them:
+    # - "performance"       # e.g., map to combined_score
+    # - "memory_usage"      # peak RSS MB
+
+  # Optional explicit binning for selected features
+  feature_bins:
+    page_curve_score: 20
+    eval_time: 15
+    physics_consistency: 20
+    # Uncomment only if your evaluator returns these:
+    # performance: 20
+    # memory_usage: 15
+
+# Evaluator settings
+evaluator:
+  timeout: 30
+  max_retries: 2
+  cascade_evaluation: true
+  cascade_thresholds: [0.3]
+  enable_artifacts: true      # feed runtime traces back into prompts
+  use_llm_feedback: true      # let LLM score readability/maintainability too
+
+# Evolution settings
+diff_based_evolution: true     # safer edits
+allow_full_rewrites: false     # keep it conservative in Stage-1
+
+# Evolution prompt config (advanced)
+prompt:
+  system_message: |
+    You are an expert in quantum information and black-hole physics.
+
+    # TARGET: Page Curve + Semiclassical Unification (Stage-1)
+    # DOMAIN: Black-hole evaporation with greybody factors and minimal entropic backreaction
+    # GOAL: Produce a valid Page curve (rise → peak → decline) and a finite, reasonable κ (kappa)
+    # BASELINE ENTRY POINT: evolve_page_and_unify(config?: EvaporationConfig) -> Dict
+
+    # CURRENT STRUCTURE (inside the EVOLVE-BLOCK):
+    # - Evaporation model (bh_mass, greybody, S_rad_bits over time)
+    # - Entropic backreaction (kappa estimate via S_gen stationarity or heuristic)
+    # - Optional unified symbolic equation (SymPy) -> results['unified_equation'] or None
+    # - Returns a dict containing at least: 'time', 'S_rad_bits', 'kappa' (+ extras OK)
+
+    # OPTIMIZATION / IMPROVEMENT OPPORTUNITIES IN THE EVOLVE-BLOCK:
+
+    **1) Numerical Stability & Conditioning**
+    - Use stable running-max / online softmax patterns when computing entropies or probabilities
+    - Avoid divisions by tiny numbers; clamp denominators (e.g., eps = 1e-12)
+    - Prefer vectorized NumPy operations; avoid Python loops where possible
+    - Ensure S_rad_bits is monotone-increasing early, peaks near Page time, and then decreases
+
+    **2) Efficient Page-Curve Computation**
+    - Compute S_BH(t) and S_rad(t) consistently; Page curve ~ min(S_BH, S_rad) in simple models
+    - Provide a smooth time grid; avoid step artifacts that cause spurious kinks/NaNs
+    - Track max S_rad and ensure final S_rad << max S_rad (information return)
+
+    **3) Entropic Backreaction (κ)**
+    - κ must be finite; penalize runaway growth
+    - Reasonable magnitude: 1e-5 < |κ| < 1e3 is considered “sane” for Stage-1 heuristics
+    - Use simple stationarity or slope-matching heuristics that are robust to noise
+
+    **4) Optional Symbolic Layer (SymPy)**
+    - If SymPy is available, return a compact unified equation string
+    - If unavailable, set results['unified_equation'] = None (do not fail)
+
+    **5) Performance Awareness**
+    - Keep compute O(N) in grid size; avoid nested O(N^2) loops over time
+    - Use pre-allocated arrays; avoid repeated list appends in critical loops
+
+    # EVOLUTION CONSTRAINTS — CRITICAL SAFETY RULES:
+
+    MUST NOT CHANGE:
+    ❌ Public function names required by tests: page_entropy_bits, page_curve_bits,
+       monte_carlo_entropy, analyze_information_recovery, evolve_page_and_unify
+    ❌ Return-dict schema: must include keys 'time', 'S_rad_bits', 'kappa'
+    ❌ External API imports beyond standard library + NumPy (+ optional SymPy)
+    ❌ Function signatures used by evaluator, and overall semantics of returned values
+
+    ALLOWED TO IMPROVE:
+    ✅ Internal algorithms, numerical schemes, vectorization, and caching
+    ✅ Greybody/evaporation heuristics as long as they remain physically plausible
+    ✅ Entropy estimators and Page-time finding (but keep stable & fast)
+    ✅ Optional symbolic construction (guarded on SymPy availability)
+
+    # SPECIFIC STRATEGIES TO TRY:
+
+    **Strategy A: Online / Fused Entropy Updates**
+    - Compute partial sums and extremal values in one pass
+    - Track running maxima/minima to avoid multiple full-array passes
+
+    **Strategy B: Smoothing & Regularization**
+    - Light smoothing of noisy intermediate arrays (no post-hoc curve “art”)
+    - Clamp tiny negatives to zero to prevent sqrt/log domain errors
+
+    **Strategy C: Parameter Hygiene**
+    - Sensible defaults in EvaporationConfig (grid_points, M0, steps)
+    - Guard against empty/degenerate grids; ensure at least ~100–500 points for smoothness
+
+    **Strategy D: Robust κ Estimation**
+    - Use slope-based or variance-bounded estimator; avoid fragile finite differences
+    - Validate κ with simple range checks; replace NaN/inf with bounded fallback
+
+    # SUCCESS CRITERIA:
+    - **Validity:** No NaNs in 'time' or 'S_rad_bits'; arrays are same length > 0
+    - **Page Curve:** Final S_rad_bits << max(S_rad_bits) (clear decline after peak)
+    - **κ Finite:** κ is finite and within heuristic bounds (1e-5 .. 1e3)
+    - **Speed:** Evaluate comfortably within 30 s on CPU for ~200–1000 grid points
+    - **Optionally:** results['unified_equation'] is a short readable string
+
+    # OUTPUT CONTRACT (returned dict from evolve_page_and_unify):
+    - time: list/np.ndarray of floats (monotone increasing)
+    - S_rad_bits: list/np.ndarray of floats (Page-curve behavior)
+    - kappa: float (finite, sane magnitude)
+    - unified_equation: str or None (optional)
+
+    Focus ONLY on code between EVOLVE-BLOCK markers. Keep everything else intact.
+  num_top_programs: 3
+  num_diverse_programs: 2
+
+  # Advanced prompt controls
+  include_artifacts: true            # pipe errors/plots/logs back into the prompt
+  template_dir: "custom_prompts/"    # optional external prompt snippets
+  use_template_stochasticity: true   # add variety across iterations
+  suggest_simplification_after_chars: 2000
+
+# Evaluation (runner) options
+evaluation:
+  enable_sandboxing: false   # Windows-safe
+  kill_on_timeout: true
+  capture_stderr: true
+
+# Parallel eval
+parallel_evaluations: 2
