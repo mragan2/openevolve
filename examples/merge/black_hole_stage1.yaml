@@ -2,19 +2,21 @@
 max_iterations: 50
 checkpoint_interval: 10
 log_level: "INFO"
+max_code_length: 25000
 
 # LLM configuration (you’re overriding with CLI, this is a safe default)
 llm:
+  primary_model: "qwen2.5-coder:7b"
+  primary_model_weight: 0.6
+  secondary_model: "mistral:7b"
+  secondary_model_weight: 0.4
   api_base: "http://localhost:11434/v1"
-  models:
-    - name: "qwen2.5-coder:7b"
-      weight: 0.8
-    - name: "mistral:7b"
-      weight: 0.2
-  temperature: 0.3
-  max_tokens: 1024
-  timeout: 60
-
+  temperature: 0.6
+  top_p: 0.95
+  max_tokens: 32000
+  timeout: 900
+  
+  
 # Database / MAP-Elites
 database:
   population_size: 25
@@ -42,6 +44,7 @@ prompt:
   num_top_programs: 3
   num_diverse_programs: 1
   use_template_stochasticity: false
+  suggest_simplification_after_chars: 2000
 
 # Evaluation (runner) options
 evaluation:
