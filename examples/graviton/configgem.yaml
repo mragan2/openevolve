@@ -8,19 +8,10 @@ random_seed: 42
 llm:
   # Ensemble configuration
   models:
-    - name: "gpt-oss:120b-cloud"
+    - name: "gemini-2.0-flash-001"
       weight: 0.4
-      reasoning_effort: high
-    - name: "qwen2.5-coder:7b"
-      weight: 0.6
-
-  evaluator_models:
-    - name: "gpt-oss:120b-cloud"
-      weight: 0.4
-      reasoning_effort: high
-      
-  api_base: "http://localhost:11434/v1"
-  api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'
+  api_base: "https://generativelanguage.googleapis.com/v1beta/openai/"
+  api_key: OPENAI_API_KEY
   temperature: 0.25
   top_p: 0.95
   max_tokens: 4096     # keep this lower for Ollama

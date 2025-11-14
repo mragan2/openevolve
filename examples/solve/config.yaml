@@ -1,0 +1,133 @@
+# Configuration for massive graviton / dark energy evolution
+max_iterations: 150
+checkpoint_interval: 10
+log_level: "INFO"
+random_seed: 42
+
+# LLM configuration
+llm:
+  # Ensemble configuration
+  models:
+    - name: "gpt-oss:120b-cloud"
+      weight: 0.4
+      reasoning_effort: high
+    - name: "qwen2.5-coder:7b"
+      weight: 0.6
+
+  evaluator_models:
+    - name: "gpt-oss:120b-cloud"
+      weight: 0.4
+      reasoning_effort: high
+      
+  api_base: "http://localhost:11434/v1"
+  api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'
+  temperature: 0.25
+  top_p: 0.95
+  max_tokens: 4096     # keep this lower for Ollama
+  timeout: 60
+  retries: 3
+  retry_delay: 5    
+
+# Prompt configuration
+prompt:
+  system_message: |
+    You are an expert cosmologist specializing in analytic reconstruction of missing physical terms in the Hubble expansion history.
+
+    You will be given an initial program that includes:
+      • A trusted ΛCDM baseline H(a)
+      • A final prediction H_total(a) = H_LCDM(a) * (1 + correction_term(a))
+
+    Your task is to rewrite ONLY the EVOLVE block, replacing the body of correction_term(a) with a compact, smooth, dimensionally-consistent analytic expression that represents a plausible “missing physical term” in the expansion history.
+
+    STRICT RULES:
+      1. Modify ONLY the code inside the EVOLVE block. Do not edit any other part of the file.
+      2. Your correction term MUST:
+         • be small at early times (a << 1)
+         • be smooth and differentiable
+         • be dimensionless
+         • avoid divergences, discontinuities, or extremely large corrections
+         • avoid oscillatory or pathological expressions unless strongly justified
+      3. Prefer simple symbolic expressions:
+         • polynomials (a, a**2, a**3)
+         • rational forms (a/(1+a), a**2/(1+a**2))
+         • logarithms or exponentials (log(1+a), exp(-a))
+      4. Keep the expression compact (few operations). Simpler is better unless complexity improves physics score.
+      5. The correction term must not override the ΛCDM baseline. It should represent a small correction, not a replacement.
+
+    Your goal is to propose a correction term that significantly improves the evaluator’s physics metrics:
+      • Better match to the synthetic H(a) data (fit_score)
+      • Suppressed at early times (early_suppression_score)
+      • Smooth (smoothness_score)
+      • Small curvature (curvature_score)
+      • Small correction today (delta_today_score)
+
+    Produce only valid Python code inside the EVOLVE block. Do not include text or comments outside the function.
+
+
+  num_top_programs: 4
+  num_diverse_programs: 1     # strict: keep diversity low but not zero
+
+  use_template_stochasticity: false   # strict: deterministic prompting
+  
+  template_variations:
+    improvement_suggestion:
+      - "Here are required corrections:"
+
+  include_artifacts: true
+  max_artifact_bytes: 20480
+  artifact_security_filter: true
+
+  suggest_simplification_after_chars: 400
+  include_changes_under_chars: 100
+  concise_implementation_max_lines: 10
+  comprehensive_implementation_min_lines: 60
+  
+
+# Database configuration
+database:
+  db_path: null
+  in_memory: true
+  log_prompts: true
+
+  # STRICT population control
+  population_size: 80          # very small and stable
+  archive_size: 50
+  num_islands: 3               # fewer islands = less diversity
+  migration_interval: 75
+  migration_rate: 0.05         # very low migration
+
+  elite_selection_ratio: 0.20   # strict: strong selection pressure
+  exploration_ratio: 0.10       # strict: low exploration
+  exploitation_ratio: 0.70      # stable exploitation
+
+  feature_dimensions:
+    - "complexity"
+    - "diversity"
+
+  feature_bins: 8
+  diversity_reference_size: 10   # strict: lower diversity reference
+
+# Evaluator configuration
+evaluator:
+  timeout: 300
+  max_retries: 3
+
+  cascade_evaluation: true
+  cascade_thresholds:
+    - 0.6
+    - 0.92
+
+  parallel_evaluations: 4
+
+  use_llm_feedback: true
+  llm_feedback_weight: 0.1
+
+# Evolution trace
+evolution_trace:
+  enabled: false
+  format: 'jsonl'
+  include_code: false
+  include_prompts: true
+  output_path: null
+  buffer_size: 10
+  compress: false
