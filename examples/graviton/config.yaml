@@ -7,9 +7,9 @@ log_level: "INFO"
 llm:
   # Ensemble configuration
   models:
-    - name: "qwen2.5-coder:7b"
+    - name: "gpt-oss:20b-cloud"
       weight: 0.6
-    - name: "mistral:7b"
+    - name: "qwen3-coder:480b-cloud"
       weight: 0.4
   
   api_base: "http://localhost:11434/v1"

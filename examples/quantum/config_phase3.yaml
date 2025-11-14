@@ -1,0 +1,82 @@
+# =====================================================================
+# HYBRID EVOLUTION CONFIGURATION (Phase 2)
+# Exploration → Refinement → Convergence
+# =====================================================================
+
+# Total generations for the full run
+max_generations: 60
+
+# Population dynamics
+population_size: 40      # ensures diversity
+elitism_rate: 0.10       # prevents collapse but keeps leaders
+mutation_rate: 0.45      # strong exploration pressure
+crossover_rate: 0.35     # some recombination of partial ideas
+
+# Logging & output
+log_level: "INFO"
+checkpoint_interval: 5
+output_dir: "openevolve_output"
+
+# LLM engine settings (safe & mutation-stable)
+llm:
+  api_base: "http://localhost:11434/v1"
+  api_key: "YOUR_KEY_OR_DUMMY"
+  temperature: 0.8
+  top_p: 0.98
+  max_tokens: 22000
+  timeout: 900
+  retries: 3
+  retry_delay: 5
+  models:
+    - name: "qwen2.5-coder:7b"
+      weight: 0.5
+    - name: "deepseek-r1:8b"
+      weight: 0.3
+    - name: "mistral:7b"
+      weight: 0.2
+
+
+# =====================================================================
+# CASCADE EVOLUTION (two-stage hybrid system)
+# Stage 1 → wild exploration
+# Stage 2 → strict physical refinement
+# =====================================================================
+
+cascade:
+  enabled: true
+
+  # STAGE 1 — Exploration (Generations 1–25)
+  # Very permissive evaluator, maximizes novelty and structure variation
+  stages:
+    - evaluator: "examples/quantum/evaluator_stage1.py"
+      generations: 25
+      description: "Exploration Phase — maximize diversity in rho_quantum"
+
+    # STAGE 2 — Physics Refinement (Generations 26–60)
+    # Uses the final high-quality physics evaluator you approved
+    - evaluator: "examples/quantum/evaluator_phase2.py"
+      generations: 35
+      description: "Refinement Phase — enforce physical realism"
+
+# =====================================================================
+# Mutation Controls (safe defaults)
+# =====================================================================
+
+mutation:
+  # Limits how much of the EVOLVE block the LLM can overwrite
+  max_mutation_size: 1400
+  allow_parameter_mutations: true
+  allow_structure_mutations: true
+  allow_math_rewrites: true
+
+recombination:
+  enabled: true
+  one_point_crossover: true
+
+# =====================================================================
+# Safety
+# =====================================================================
+
+sandbox:
+  enabled: true
+  timeout_seconds: 10   # avoid infinite loops in candidate code

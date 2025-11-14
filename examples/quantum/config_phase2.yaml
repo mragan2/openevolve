@@ -1,0 +1,143 @@
+# Configuration for semiclassical cosmology / quantum correction evolution (Phase 2)
+
+# This configuration file is derived from the original ``config.yaml`` but
+# adapted for a more demanding second phase of evolution.  The primary
+# differences are:
+#   • A larger number of iterations to allow deeper exploration.
+#   • A lower temperature to encourage more coherent variations.
+#   • An updated system message guiding the LLM to produce quantum
+#     corrections that remain small but non-zero at the present epoch and
+#     exhibit structure at mid-redshift.
+
+# ------------ General settings ------------
+max_iterations: 300
+checkpoint_interval: 5
+log_level: "INFO"
+random_seed: 42
+file_suffix: ".py"
+diff_based_evolution: false
+max_code_length: 100000
+
+# ------------ LLM configuration ------------
+llm:
+  api_base: "http://localhost:11434/v1"
+  api_key: "YOUR_KEY_OR_DUMMY"
+  temperature: 0.8
+  top_p: 0.98
+  max_tokens: 22000
+  timeout: 900
+  retries: 3
+  retry_delay: 5
+  models:
+    - name: "qwen2.5-coder:7b"
+      weight: 0.5
+    - name: "deepseek-r1:8b"
+      weight: 0.3
+    - name: "mistral:7b"
+      weight: 0.2
+
+# ------------ Prompt configuration ------------
+prompt:
+  system_message: |
+    You are a theoretical physicist and numerical cosmologist specialising in:
+      • General Relativity (Einstein field equations)
+      • Quantum field theory in curved spacetime
+      • Massive gravity and constraints on the graviton mass
+      • Cosmological background dynamics (Friedmann equations, ΛCDM)
+
+    You are helping evolve an effective quantum correction ρ_q(a, H, m_g)
+    that modifies the Friedmann equation in a controlled, physically motivated
+    way.  In this second phase of evolution we are particularly interested in
+    corrections that remain small but non-zero today — around a few percent of
+    the present-day critical density — and that exhibit a moderate bump at
+    intermediate scale factors (a ≈ 0.3–0.7).  Early times (a ≤ 0.3) must
+    still be dominated by matter and radiation, with the quantum fraction well
+    below a few percent.  Use smooth transitions and well-behaved functional
+    forms to explore these possibilities.
+
+    IMPORTANT (STRICT RULES):
+      - Your output MUST contain exactly the code between the EVOLVE markers and nothing else.
+        Use these markers exactly and keep them on their own lines:
+          # EVOLVE-BLOCK-START
+          # EVOLVE-BLOCK-END
+      - Only change the code between those markers. Do NOT add, remove or move the marker lines.
+      - The evolved code MUST define the following function signature exactly (including name and parameters):
+          def rho_quantum(a, H_classical, m_g):
+        The rest of the scaffold must remain unchanged.
+      - Do NOT include any triple-quoted strings (""" or ''') or code fences in your output.
+      - Do not insert `from __future__` imports or any top-level imports inside the EVOLVE block.
+      - If you deviate from these rules, your output will be rejected and the candidate will be discarded.
+
+    EXPLORATION GUIDELINES:
+      • The goal of this phase is to move beyond trivial rescales of the baseline. Introduce
+        purposeful shape in ρ_q, such as a small peak around a ≈ 0.5 or mild power-law dependence
+        on H_classical or m_g, while keeping the correction smooth and non-negative.
+      • Do not simply decrease the amplitude to zero; the evaluator now rewards present-day
+        corrections around three percent of ρ_crit and penalises too small or too large values.
+      • You may trade modest deviations in H₀ ratio or quantum fraction scores if it helps
+        explore qualitatively new behaviours.
+      • Avoid discontinuities or abrupt sign changes.  Stick to continuous, differentiable
+        functions and ensure ρ_q remains finite for all positive a.
+      • Use mixtures of exponentials, power laws, rational functions, or other smooth forms.  You
+        can also let ρ_q depend explicitly on H_classical and m_g, but do not introduce randomness
+        or undefined variables.
+
+    PHYSICAL CONSTRAINT REMINDERS:
+      - For 0.05 ≤ a ≤ 0.3 the quantum density must remain at most a few percent of the local
+        critical density; keep it smooth and strictly non-negative.
+      - At a = 1 the quantum density should be within roughly 2–5 % of the critical density, not
+        exactly zero.
+      - ρ_q should never flip the sign of H_classical or make H(a) non-monotonic; rely on smooth
+        tapers instead of abrupt sign changes.
+      - Any code that introduces randomness, undefined symbols or discontinuities will be discarded
+        before evaluation — focus on deterministic, well-behaved profiles.
+
+  evaluator_system_message: "evaluator_system_message_phase2"
+  num_top_programs: 1
+  num_diverse_programs: 6
+  use_template_stochasticity: true
+
+mutation:
+  # Limits how much of the EVOLVE block the LLM can overwrite
+  max_mutation_size: 1400
+  allow_parameter_mutations: true
+  allow_structure_mutations: true
+  allow_math_rewrites: true
+
+# ------------ Database / evolution settings ------------
+database:
+  in_memory: true
+  population_size: 40
+  archive_size: 25
+  num_islands: 5
+  elite_selection_ratio: 0.1
+  exploration_ratio: 0.55
+  exploitation_ratio: 0.25
+  feature_dimensions: ["complexity", "diversity"]
+  feature_bins: 15
+  migration_interval: 25
+  migration_rate: 0.1
+  log_prompts: true
+
+# ------------ Evaluator configuration ------------
+evaluator:
+  timeout: 60
+  max_retries: 3
+  cascade_evaluation: true
+  cascade_thresholds: [0.5, 0.75]
+  parallel_evaluations: 4
+  distributed: false
+  use_llm_feedback: false
+  llm_feedback_weight: 0.1
+  enable_artifacts: true
+  max_artifact_storage: 104857600
+
+# ------------ Evolution trace (optional) ------------
+evolution_trace:
+  enabled: false
+  format: "jsonl"
+  include_code: false
+  include_prompts: true
+  output_path: null
+  buffer_size: 10
+  compress: false
