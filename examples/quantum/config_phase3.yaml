@@ -20,21 +20,11 @@ output_dir: "openevolve_output"
 # LLM engine settings (safe & mutation-stable)
 llm:
   api_base: "http://localhost:11434/v1"
-  api_key: "YOUR_KEY_OR_DUMMY"
-  temperature: 0.8
-  top_p: 0.98
+  model: "qwen2.5-coder:7b"
+  temperature: 0.4       # prevents destructive mutations
+  top_p: 0.85            # stable but creative
   max_tokens: 22000
   timeout: 900
-  retries: 3
-  retry_delay: 5
-  models:
-    - name: "qwen2.5-coder:7b"
-      weight: 0.5
-    - name: "deepseek-r1:8b"
-      weight: 0.3
-    - name: "mistral:7b"
-      weight: 0.2
-
 
 # =====================================================================
 # CASCADE EVOLUTION (two-stage hybrid system)

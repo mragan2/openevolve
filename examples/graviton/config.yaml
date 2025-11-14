@@ -1,23 +1,32 @@
 # Configuration for massive graviton / dark energy evolution
-max_iterations: 2500
+max_iterations: 150
 checkpoint_interval: 10
 log_level: "INFO"
+random_seed: 42
 
 # LLM configuration
 llm:
   # Ensemble configuration
   models:
-    - name: "gpt-oss:20b-cloud"
-      weight: 0.6
-    - name: "qwen3-coder:480b-cloud"
+    - name: "gpt-oss:120b-cloud"
       weight: 0.4
-  
+      reasoning_effort: high
+    - name: "qwen2.5-coder:7b"
+      weight: 0.6
+
+  evaluator_models:
+    - name: "gpt-oss:120b-cloud"
+      weight: 0.4
+      reasoning_effort: high
+      
   api_base: "http://localhost:11434/v1"
   api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'
-  temperature: 0.7
+  temperature: 0.25
   top_p: 0.95
   max_tokens: 4096     # keep this lower for Ollama
-  timeout: 600
+  timeout: 60
+  retries: 3
+  retry_delay: 5    
 
 # Prompt configuration
 prompt:
@@ -112,26 +121,70 @@ prompt:
           * Everything outside the EVOLVE block is identical to the previous program.
           * Only the bodies of H_mg_phenomenological and lambda_eff_from_mg (and any
             helper code placed strictly inside the EVOLVE block) are modified.
-  num_top_programs: 3
-  use_template_stochasticity: true
+  num_top_programs: 4
+  num_diverse_programs: 1     # strict: keep diversity low but not zero
+
+  use_template_stochasticity: false   # strict: deterministic prompting
+  
+  template_variations:
+    improvement_suggestion:
+      - "Here are required corrections:"
+
+  include_artifacts: true
+  max_artifact_bytes: 20480
+  artifact_security_filter: true
+
+  suggest_simplification_after_chars: 400
+  include_changes_under_chars: 100
+  concise_implementation_max_lines: 10
+  comprehensive_implementation_min_lines: 60
+  
 
 # Database configuration
 database:
-  population_size: 200  # Increased population for more diversity
-  archive_size: 25
-  num_islands: 5
-  elite_selection_ratio: 0.3
-  exploitation_ratio: 0.7
+  db_path: null
+  in_memory: true
+  log_prompts: true
+
+  # STRICT population control
+  population_size: 80          # very small and stable
+  archive_size: 50
+  num_islands: 3               # fewer islands = less diversity
+  migration_interval: 75
+  migration_rate: 0.05         # very low migration
+
+  elite_selection_ratio: 0.20   # strict: strong selection pressure
+  exploration_ratio: 0.10       # strict: low exploration
+  exploitation_ratio: 0.70      # stable exploitation
+
+  feature_dimensions:
+    - "complexity"
+    - "diversity"
+
+  feature_bins: 8
+  diversity_reference_size: 10   # strict: lower diversity reference
 
 # Evaluator configuration
 evaluator:
   timeout: 300
+  max_retries: 3
+
   cascade_evaluation: true
-  cascade_thresholds: [0.5, 0.75]
+  cascade_thresholds:
+    - 0.6
+    - 0.92
+
   parallel_evaluations: 4
+
   use_llm_feedback: false
+  llm_feedback_weight: 0.1
 
-# Evolution settings
-diff_based_evolution: false  # Use full rewrites instead of diffs
-allow_full_rewrites: true    # Allow full rewrites for constructor functions
-
+# Evolution trace
+evolution_trace:
+  enabled: false
+  format: 'jsonl'
+  include_code: false
+  include_prompts: true
+  output_path: null
+  buffer_size: 10
+  compress: false

@@ -1,13 +1,11 @@
 """Evaluator for massive graviton / dark energy models in OpenEvolve.
 
 This evaluator handles candidate modules that implement modifications to a
-massive-graviton cosmological scaffold.  Candidates may emit either the
+massive-graviton cosmological scaffold. Candidates may emit either the
 entire scaffold or only the EVOLVE block; in the latter case the evaluator
 stitches the user-provided block into the canonical initial_program.py before
-execution.  It then computes a suite of physics-inspired scores that
-quantify how closely the candidate adheres to expected massive-gravity
-behaviour.  Higher combined scores indicate more physically plausible
-implementations.
+execution. It then computes a suite of physics-inspired scores that quantify
+how closely the candidate adheres to expected massive-gravity behaviour.
 
 Required functions in the candidate namespace:
   - graviton_mass_from_lambda(lambda_g_m: float) -> float
@@ -20,119 +18,150 @@ Optionally:
   - run_sanity_checks() -> dict
 
 The evaluate() function returns a dictionary with keys including
-'combined_score'.  On failure it returns combined_score=0.0 and an
+'combined_score'. On failure it returns combined_score=0.0 and an
 'error' message.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import logging
 import math
+import os
 import tempfile
 import time
+import traceback
 import uuid
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Dict, Any
+from types import SimpleNamespace
 
 import runpy
 
-# ---------------------------------------------------------------------------
-# Reference constants (must match initial_program constants)
-# ---------------------------------------------------------------------------
+# ============================================================
+# Required functions expected in the evolved program
+# ============================================================
 
-C_LIGHT: float = 299_792_458.0
-HBAR: float = 1.054_571_817e-34
-G_NEWTON: float = 6.674_30e-11
+REQUIRED_FUNCTIONS = [
+    "graviton_mass_from_lambda",
+    "yukawa_potential",
+    "gw_group_velocity",
+    "lambda_eff_from_mg",
+    "H_mg_phenomenological",
+]
 
-# Reference graviton Compton wavelength and mass
-LAMBDA_G_REF_METERS: float = 4.39e26  # ≈ 4.64 gly
-M_G_EXPECTED: float = HBAR / (C_LIGHT * LAMBDA_G_REF_METERS)
+# ============================================================
+# Environment helpers (for tunable tolerances)
+# ============================================================
 
-# Observational scales
-LAMBDA_EFF_REF: float = 1.0e-52   # m^-2, order of observed cosmological constant
-OMEGA_MG_REF: float = 0.7         # present-day dark-energy fraction
-H0_REF: float = 2.2e-18           # s^-1
+def _float_env(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except Exception:
+        return default
 
-# ---------------------------------------------------------------------------
-# EVOLVE block splicing helpers
-# ---------------------------------------------------------------------------
+
+def _bool_env(name: str) -> bool:
+    return os.environ.get(name, "0").lower() in {"1", "true", "yes", "on"}
+
+
+LOGGER = logging.getLogger(__name__)
+LOG_LOW_SCORE_DETAILS = _bool_env("OPENEVOLVE_LOG_LOW_SCORES")
+LOW_SCORE_THRESHOLD = _float_env("OPENEVOLVE_LOW_SCORE_THRESHOLD", 0.3)
+
+MG_TOL = _float_env("OPENEVOLVE_MG_TOL", 1e-3)
+YUKAWA_TOL = _float_env("OPENEVOLVE_YUKAWA_TOL", 1e-3)
+GW_TOL = _float_env("OPENEVOLVE_GW_TOL", 1e-6)
+LAMBDA_TOL = _float_env("OPENEVOLVE_LAMBDA_TOL", 3.0)
+HMG_TOL = _float_env("OPENEVOLVE_HMG_TOL", 0.2)
+
+# ============================================================
+# Reference constants
+# ============================================================
+
+C_LIGHT = 299_792_458.0
+HBAR = 1.054_571_817e-34
+G_NEWTON = 6.674_30e-11
+
+LAMBDA_G_REF_METERS = 4.39e26
+M_G_EXPECTED = HBAR / (C_LIGHT * LAMBDA_G_REF_METERS)
+
+LAMBDA_EFF_REF = 1.0e-52
+OMEGA_MG_REF = 0.7
+H0_REF = 2.2e-18
+
+# ============================================================
+# EVOLVE block extraction / stitching
+# ============================================================
 
 def _extract_evolve_block(source: str) -> str:
-    """Extract the EVOLVE block from *source*.
-
-    Raises ValueError if the markers are missing or the block is empty.
-    """
     start_tag = "# EVOLVE-BLOCK-START"
     end_tag = "# EVOLVE-BLOCK-END"
     lines = source.splitlines()
+
     start_idx = None
     end_idx = None
-    for idx, line in enumerate(lines):
+
+    for i, line in enumerate(lines):
         if line.strip() == start_tag:
-            start_idx = idx
-            continue
+            start_idx = i
         if line.strip() == end_tag:
-            end_idx = idx
+            end_idx = i
             break
+
     if start_idx is None or end_idx is None or end_idx <= start_idx:
         raise ValueError("Missing EVOLVE block markers")
+
     block = "\n".join(lines[start_idx + 1 : end_idx]).strip()
     if not block:
         raise ValueError("EVOLVE block is empty")
+
     return block
 
 
 def _sanitize_user_block(block: str) -> str:
-    """Sanitise a user-supplied EVOLVE block.
-
-    Removes directives such as 'from __future__ import' that would be invalid
-    inside the EVOLVE block.  Raises ValueError if the result is empty.
-    """
-    sanitized_lines = []
+    out = []
     for line in block.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("from __future__ import"):
+        if line.strip().startswith("from __future__ import"):
             continue
-        sanitized_lines.append(line)
-    result = "\n".join(sanitized_lines).strip()
+        out.append(line)
+    result = "\n".join(out).strip()
     if not result:
-        raise ValueError("EVOLVE block became empty after sanitization")
+        raise ValueError("EVOLVE block empty after sanitization")
     return result
 
 
 def _build_locked_program(scaffold_source: str, user_block: str) -> str:
-    """Inject *user_block* into the scaffold_source between EVOLVE markers."""
-    lines = scaffold_source.splitlines()
-    out_lines = []
+    out = []
     in_block = False
     start_tag = "# EVOLVE-BLOCK-START"
     end_tag = "# EVOLVE-BLOCK-END"
-    for line in lines:
+
+    for line in scaffold_source.splitlines():
         stripped = line.strip()
         if stripped == start_tag:
-            out_lines.append(line)
-            out_lines.append(user_block)
+            out.append(line)
+            out.append(user_block)
             in_block = True
             continue
         if stripped == end_tag and in_block:
+            out.append(line)
             in_block = False
-            out_lines.append(line)
             continue
         if not in_block:
-            out_lines.append(line)
-    return "\n".join(out_lines)
+            out.append(line)
+
+    return "\n".join(out)
 
 
-def _execute_stitched_program(full_source: str) -> SimpleNamespace:
-    """Execute *full_source* in isolation and return the resulting namespace."""
-    # Write the stitched program to a temporary file
+def _execute_stitched(full_source: str) -> SimpleNamespace:
     with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as tmp:
         tmp.write(full_source)
         tmp_path = Path(tmp.name)
+
     try:
-        globals_dict = runpy.run_path(str(tmp_path), run_name="__candidate__")
-        return SimpleNamespace(**globals_dict)
+        g = runpy.run_path(str(tmp_path))
+        return SimpleNamespace(**g)
     finally:
         try:
             tmp_path.unlink()
@@ -140,201 +169,344 @@ def _execute_stitched_program(full_source: str) -> SimpleNamespace:
             pass
 
 
-def _import_full_module(program_path: str) -> SimpleNamespace:
-    """Import a candidate module directly when it already contains the scaffold."""
-    module_name = f"candidate_massive_{uuid.uuid4().hex}"
-    spec = importlib.util.spec_from_file_location(module_name, program_path)
+def _import_full(program_path: str) -> SimpleNamespace:
+    name = f"candidate_{uuid.uuid4().hex}"
+    spec = importlib.util.spec_from_file_location(name, program_path)
     if spec is None or spec.loader is None:
-        raise ImportError(f"Could not create spec for {program_path}")
+        raise ImportError(f"Failed spec for {program_path}")
+
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)  # type: ignore[attr-defined]
+    spec.loader.exec_module(module)  # type: ignore
     return SimpleNamespace(**module.__dict__)
 
 
-def _load_candidate_module(program_path: str) -> SimpleNamespace:
-    """Load a candidate file, stitching it into the scaffold when necessary."""
-    path = Path(program_path)
-    source = path.read_text(encoding="utf-8")
-    # Path to the canonical scaffold (initial_program.py) located next to this evaluator
-    scaffold_path = Path(__file__).resolve().parent / "initial_program.py"
+def _load_candidate_namespace(program_path: str) -> SimpleNamespace:
+    """Load either stitched EVOLVE block or full module."""
+    full_path = Path(program_path)
     try:
-        user_block = _extract_evolve_block(source)
-        sanitized = _sanitize_user_block(user_block)
+        source = full_path.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise RuntimeError(f"Failed to read candidate program {full_path}: {exc}")
+
+    scaffold_path = Path(__file__).parent / "initial_program.py"
+
+    try:
+        block = _extract_evolve_block(source)
+        block = _sanitize_user_block(block)
         scaffold_source = scaffold_path.read_text(encoding="utf-8")
-        full_source = _build_locked_program(scaffold_source, sanitized)
-        return _execute_stitched_program(full_source)
+        full_source = _build_locked_program(scaffold_source, block)
+        return _execute_stitched(full_source)
     except ValueError:
-        # Candidate probably emitted the full module already
-        return _import_full_module(str(program_path))
+        # No EVOLVE block: assume this is a full module
+        return _import_full(str(full_path))
 
+# ============================================================
+# Function presence scoring
+# ============================================================
 
-# ---------------------------------------------------------------------------
-# Scoring utilities
-# ---------------------------------------------------------------------------
+def _functions_present_score(ns: Any) -> float:
+    have = 0
+    for fn in REQUIRED_FUNCTIONS:
+        if hasattr(ns, fn) and callable(getattr(ns, fn)):
+            have += 1
+    return float(have) / float(len(REQUIRED_FUNCTIONS))
 
-def _score_from_relative_error(rel_err: float, scale: float = 1.0) -> float:
-    """Map a relative error into the interval [0, 1] with a soft fall-off.
+# ============================================================
+# Low-score logging
+# ============================================================
 
-    A relative error equal to `scale` produces a score of about 0.5.  Smaller
-    errors yield scores closer to 1, while larger errors rapidly decrease the
-    score.  Negative errors are treated as zero.
+def _log_low(metrics: Dict[str, float]) -> None:
+    if LOG_LOW_SCORE_DETAILS and metrics.get("combined_score", 1.0) < LOW_SCORE_THRESHOLD:
+        LOGGER.warning("LOW SCORE: %s", metrics)
+
+# ============================================================
+# Full metric bundle for massive graviton physics
+# ============================================================
+
+def _full_metric_bundle(ns: Any, fps: float) -> Dict[str, float]:
     """
-    rel = max(0.0, rel_err / max(scale, 1e-30))
-    return 1.0 / (1.0 + rel)
-
-
-def _score_bounded_ratio(val: float, target: float) -> float:
-    """Score how close `val` is to `target` (> 0) in logarithmic space.
-
-    Returns 1 when val ≈ target and decreases symmetrically for values an
-    order of magnitude away.  Non-positive inputs yield a zero score.
+    Full physics evaluation for massive graviton cosmology.
+    Includes the original 5 metrics PLUS 5 new metrics that provide
+    meaningful selective pressure beyond the baseline implementation:
+        - early_suppression_score          (A)
+        - slope_score                      (B)
+        - curvature_score                  (C)
+        - w_eff_score                      (D)
+        - lambda_variation_score           (E)
     """
-    if val <= 0.0 or target <= 0.0:
-        return 0.0
-    log_ratio = abs(math.log10(val / target))
-    return 1.0 / (1.0 + log_ratio)
 
-
-def _clamp01(x: float) -> float:
-    """Clamp a float into the [0, 1] interval."""
-    try:
-        return max(0.0, min(1.0, float(x)))
-    except Exception:
-        return 0.0
-
-
-# ---------------------------------------------------------------------------
-# Primary entry point
-# ---------------------------------------------------------------------------
-
-def evaluate(program_path: str) -> Dict[str, float]:
-    """
-    Evaluate a candidate massive graviton cosmology implementation.
-
-    This function loads the candidate program, stitches the evolved block into
-    the canonical scaffold if necessary, and computes a set of physics-inspired
-    metrics.  It returns a dictionary with keys such as 'combined_score'.
-    Higher combined scores indicate better adherence to expected physical
-    behaviour.
-    """
-    t0 = time.time()
-    metrics: Dict[str, Any] = {
-        "syntax_valid": 0.0,
-        "module_loaded": 0.0,
-        "functions_present_score": 0.0,
+    # Base metrics
+    metrics: Dict[str, float] = {
+        "functions_present_score": float(fps),
         "mg_score": 0.0,
         "yukawa_score": 0.0,
         "gw_score": 0.0,
         "lambda_eff_score": 0.0,
         "Hmg_score": 0.0,
+
+        # New advanced metrics (A–E)
+        "early_suppression_score": 0.0,
+        "slope_score": 0.0,
+        "curvature_score": 0.0,
+        "w_eff_score": 0.0,
+        "lambda_variation_score": 0.0,
+
         "combined_score": 0.0,
-        "eval_time": 0.0,
     }
+
+    if fps < 1.0:
+        return metrics
+
+    # ============================================================
+    # 1. Original Metrics
+    # ============================================================
+
+    # --- mg reproduction ---
     try:
-        ns = _load_candidate_module(program_path)
-        metrics["syntax_valid"] = 1.0
-        metrics["module_loaded"] = 1.0
-        # Verify required functions exist
-        required = [
-            "graviton_mass_from_lambda",
-            "yukawa_potential",
-            "gw_group_velocity",
-            "lambda_eff_from_mg",
-            "H_mg_phenomenological",
-        ]
-        present_count = 0
-        for fn in required:
-            if hasattr(ns, fn) and callable(getattr(ns, fn)):
-                present_count += 1
-        metrics["functions_present_score"] = present_count / float(len(required))
-        if metrics["functions_present_score"] < 1.0:
-            # Early exit: candidate missing required functions
-            metrics["combined_score"] = 0.0
-            metrics["eval_time"] = time.time() - t0
-            return metrics
-        # m_g reproduction from lambda
-        try:
-            mg_from_lambda = ns.graviton_mass_from_lambda(float(LAMBDA_G_REF_METERS))
-        except Exception:
-            mg_from_lambda = float("nan")
-        mg_ref = float(M_G_EXPECTED)
-        if mg_ref != 0.0 and math.isfinite(mg_from_lambda):
-            rel_err_mg = abs(mg_from_lambda - mg_ref) / max(abs(mg_ref), 1e-99)
-            metrics["mg_score"] = _score_from_relative_error(rel_err_mg, scale=0.1)
-        else:
-            metrics["mg_score"] = 0.0
-        # Yukawa potential behaviour
-        try:
-            M_test = 1.0e30
-            r_small = 1.0e20  # much smaller than lambda_g_ref
-            r_large = float(LAMBDA_G_REF_METERS)  # around lambda_g_ref
-            V_small = ns.yukawa_potential(r_small, M_test, float(LAMBDA_G_REF_METERS))
-            V_newton_small = -G_NEWTON * M_test / r_small
-            ratio_small = V_small / V_newton_small if V_newton_small != 0 else 0.0
-            error_small = abs(ratio_small - 1.0)
-            score_small = _clamp01(1.0 / (1.0 + error_small))
-            V_large = ns.yukawa_potential(r_large, M_test, float(LAMBDA_G_REF_METERS))
-            V_newton_large = -G_NEWTON * M_test / r_large
-            ratio_large = V_large / V_newton_large if V_newton_large != 0 else 0.0
-            expected_large = math.exp(-r_large / float(LAMBDA_G_REF_METERS))
-            error_large = abs(ratio_large - expected_large)
-            score_large = _clamp01(1.0 / (1.0 + error_large))
-            metrics["yukawa_score"] = 0.5 * (score_small + score_large)
-        except Exception:
-            metrics["yukawa_score"] = 0.0
-        # Gravitational-wave group velocity
-        try:
-            omega_high = 1.0e3  # rad/s
-            v_g_val = ns.gw_group_velocity(omega_high, float(M_G_EXPECTED))
-            ratio = (M_G_EXPECTED * C_LIGHT * C_LIGHT) / (HBAR * omega_high)
-            expected_vg = C_LIGHT * math.sqrt(max(0.0, 1.0 - ratio * ratio))
-            rel_err_vg = abs(v_g_val - expected_vg) / max(abs(expected_vg), 1e-99)
-            metrics["gw_score"] = _score_from_relative_error(rel_err_vg, scale=0.05)
-        except Exception:
-            metrics["gw_score"] = 0.0
-        # Effective cosmological constant mapping
-        try:
-            lam_val = ns.lambda_eff_from_mg(float(M_G_EXPECTED))
-            if lam_val > 0.0 and LAMBDA_EFF_REF > 0.0:
-                metrics["lambda_eff_score"] = _score_bounded_ratio(lam_val, float(LAMBDA_EFF_REF))
-            else:
-                metrics["lambda_eff_score"] = 0.0
-        except Exception:
-            metrics["lambda_eff_score"] = 0.0
-        # Phenomenological graviton contribution at a=1
-        try:
-            Hmg_val = ns.H_mg_phenomenological(1.0, float(M_G_EXPECTED), float(H0_REF))
-            target_val = float(OMEGA_MG_REF) * (float(H0_REF) ** 2)
-            if Hmg_val > 0.0 and target_val > 0.0:
-                metrics["Hmg_score"] = _score_bounded_ratio(Hmg_val, target_val)
-            else:
-                metrics["Hmg_score"] = 0.0
-        except Exception:
-            metrics["Hmg_score"] = 0.0
-        # Weighted combined score
-        w_funcs = 0.1
-        w_mg = 0.15
-        w_yuk = 0.15
-        w_gw = 0.1
-        w_lambda = 0.25
-        w_Hmg = 0.25
-        metrics["combined_score"] = (
-            w_funcs * metrics["functions_present_score"]
-            + w_mg * metrics["mg_score"]
-            + w_yuk * metrics["yukawa_score"]
-            + w_gw * metrics["gw_score"]
-            + w_lambda * metrics["lambda_eff_score"]
-            + w_Hmg * metrics["Hmg_score"]
+        mg_calc = ns.graviton_mass_from_lambda(LAMBDA_G_REF_METERS)
+        rel_err = abs(mg_calc - M_G_EXPECTED) / max(abs(M_G_EXPECTED), 1e-99)
+        metrics["mg_score"] = 1.0 / (1.0 + rel_err / MG_TOL)
+    except Exception:
+        metrics["mg_score"] = 0.0
+
+    # --- Yukawa behaviour ---
+    try:
+        M_test = 1.0e30
+        r_small = 1.0e20
+        r_large = LAMBDA_G_REF_METERS
+
+        V_small = ns.yukawa_potential(r_small, M_test, LAMBDA_G_REF_METERS)
+        V_newton_small = -G_NEWTON * M_test / r_small
+        err_small = abs((V_small / V_newton_small) - 1.0)
+
+        V_large = ns.yukawa_potential(r_large, M_test, LAMBDA_G_REF_METERS)
+        V_newton_large = -G_NEWTON * M_test / r_large
+        expected_large = math.exp(-1.0)
+        err_large = abs((V_large / V_newton_large) - expected_large)
+
+        metrics["yukawa_score"] = 0.5 * (
+            1.0 / (1.0 + err_small / YUKAWA_TOL)
+            + 1.0 / (1.0 + err_large / YUKAWA_TOL)
         )
-        metrics["eval_time"] = time.time() - t0
-        metrics["combined_score"] = _clamp01(metrics["combined_score"])
+    except Exception:
+        metrics["yukawa_score"] = 0.0
+
+    # --- GW velocity ---
+    try:
+        omega = 1.0e3
+        v = ns.gw_group_velocity(omega, M_G_EXPECTED)
+        ratio = (M_G_EXPECTED * C_LIGHT * C_LIGHT) / (HBAR * omega)
+        expected = C_LIGHT * math.sqrt(max(0.0, 1.0 - ratio * ratio))
+        rel = abs(v - expected) / max(abs(expected), 1e-99)
+        metrics["gw_score"] = 1.0 / (1.0 + rel / GW_TOL)
+    except Exception:
+        metrics["gw_score"] = 0.0
+
+    # --- Lambda_eff ---
+    try:
+        lam = ns.lambda_eff_from_mg(M_G_EXPECTED)
+        if lam > 0.0:
+            log_ratio = abs(math.log10(lam / LAMBDA_EFF_REF))
+            metrics["lambda_eff_score"] = 1.0 / (1.0 + log_ratio / LAMBDA_TOL)
+        else:
+            metrics["lambda_eff_score"] = 0.0
+    except Exception:
+        metrics["lambda_eff_score"] = 0.0
+
+    # --- Hmg(a=1) target ---
+    try:
+        Hmg = ns.H_mg_phenomenological(1.0, M_G_EXPECTED, H0_REF)
+        target = OMEGA_MG_REF * (H0_REF ** 2)
+        log_ratio = abs(math.log10(max(Hmg, 1e-50) / max(target, 1e-50)))
+        metrics["Hmg_score"] = 1.0 / (1.0 + log_ratio / HMG_TOL)
+    except Exception:
+        metrics["Hmg_score"] = 0.0
+
+    # ============================================================
+    # 2. NEW METRIC A — Early-time suppression
+    # ============================================================
+    try:
+        H_early = ns.H_mg_phenomenological(0.05, M_G_EXPECTED, H0_REF)
+        H_today = ns.H_mg_phenomenological(1.0, M_G_EXPECTED, H0_REF)
+        ratio = H_early / max(H_today, 1e-50)
+        metrics["early_suppression_score"] = 1.0 / (1.0 + 100.0 * ratio)
+    except Exception:
+        metrics["early_suppression_score"] = 0.0
+
+    # ============================================================
+    # 3. NEW METRIC B — Late-time slope
+    # ============================================================
+    try:
+        a1, a2 = 0.3, 1.0
+        H1 = ns.H_mg_phenomenological(a1, M_G_EXPECTED, H0_REF)
+        H2 = ns.H_mg_phenomenological(a2, M_G_EXPECTED, H0_REF)
+        slope = abs(H2 - H1) / (a2 - a1)
+        target_slope = 1e-35
+        metrics["slope_score"] = 1.0 / (1.0 + abs(math.log10((slope + 1e-99) / target_slope)))
+    except Exception:
+        metrics["slope_score"] = 0.0
+
+    # ============================================================
+    # 4. NEW METRIC C — Curvature of the dark-energy term
+    # ============================================================
+    try:
+        alist = [0.3, 0.5, 0.7, 1.0]
+        H = [ns.H_mg_phenomenological(a, M_G_EXPECTED, H0_REF) for a in alist]
+        curvature = 0.0
+        for i in range(1, len(H) - 1):
+            curvature += abs(H[i + 1] - 2 * H[i] + H[i - 1])
+        curvature /= (len(H) - 2)
+        target_curv = 1e-72
+        metrics["curvature_score"] = 1.0 / (1.0 + abs(math.log10((curvature + 1e-99) / target_curv)))
+    except Exception:
+        metrics["curvature_score"] = 0.0
+
+    # ============================================================
+    # 5. NEW METRIC D — Effective equation of state w(a)
+    # ============================================================
+    try:
+        def w_eff(a):
+            eps = 1e-3
+            Hm = ns.H_mg_phenomenological(a, M_G_EXPECTED, H0_REF)
+            Hp = ns.H_mg_phenomenological(a + eps, M_G_EXPECTED, H0_REF)
+            Hm2 = Hm * Hm
+            Hp2 = Hp * Hp
+            dlnH2 = math.log(max(Hp2, 1e-99)) - math.log(max(Hm2, 1e-99))
+            dlnA = math.log(a + eps) - math.log(a)
+            return -1.0 - (1.0 / 3.0) * (dlnH2 / dlnA)
+
+        w1 = w_eff(1.0)
+        w03 = w_eff(0.3)
+        err = abs(w1 + 1.0) + abs(w03 + 1.0)  # want ≈ -1 but not flat everywhere
+        metrics["w_eff_score"] = 1.0 / (1.0 + err)
+    except Exception:
+        metrics["w_eff_score"] = 0.0
+
+    # ============================================================
+    # 6. NEW METRIC E — Lambda_eff(a) variation
+    # ============================================================
+    try:
+        a_grid = [0.3 + i * 0.07 for i in range(10)]
+        lam_values = []
+        for a in a_grid:
+            Hm = ns.H_mg_phenomenological(a, M_G_EXPECTED, H0_REF)
+            lam_values.append(Hm / max(H0_REF * H0_REF, 1e-99))
+
+        mean_lam = sum(lam_values) / len(lam_values)
+        var = sum((x - mean_lam) ** 2 for x in lam_values) / len(lam_values)
+        target_var = 1e-70
+        metrics["lambda_variation_score"] = 1.0 / (1.0 + var / target_var)
+    except Exception:
+        metrics["lambda_variation_score"] = 0.0
+
+    # ============================================================
+    # Combined weighted score
+    # ============================================================
+
+    weights = dict(
+        functions_present_score=0.05,
+        mg_score=0.10,
+        yukawa_score=0.10,
+        gw_score=0.05,
+        lambda_eff_score=0.15,
+        Hmg_score=0.10,
+        early_suppression_score=0.10,
+        slope_score=0.10,
+        curvature_score=0.10,
+        w_eff_score=0.10,
+        lambda_variation_score=0.05,
+    )
+
+    num = sum(metrics[k] * w for k, w in weights.items())
+    den = sum(weights.values())
+    metrics["combined_score"] = float(max(0.0, min(1.0, num / den)))
+
+    _log_low(metrics)
+    return metrics
+
+
+# ============================================================
+# Stage 1 Evaluation
+# ============================================================
+
+def evaluate_stage1(program_path: str) -> Dict[str, float]:
+    """
+    Fast structural check used for cascade_evaluation stage 1.
+    Only tests that the module imports and required functions exist.
+    """
+    t0 = time.time()
+    try:
+        ns = _load_candidate_namespace(program_path)
+        fps = _functions_present_score(ns)
+        t1 = time.time()
+        return {
+            "syntax_valid": 1.0,
+            "module_loaded": 1.0,
+            "functions_present_score": float(fps),
+            "combined_score": float(fps),
+            "eval_time": float(t1 - t0),
+        }
+    except Exception as exc:
+        t1 = time.time()
+        return {
+            "syntax_valid": 0.0,
+            "module_loaded": 0.0,
+            "functions_present_score": 0.0,
+            "combined_score": 0.0,
+            "eval_time": float(t1 - t0),
+            "error": f"{exc}\n{traceback.format_exc()}",
+        }
+
+# ============================================================
+# Stage 2 Evaluation (full physics)
+# ============================================================
+
+def evaluate_stage2(program_path: str) -> Dict[str, float]:
+    """
+    Full physics evaluation used for cascade_evaluation stage 2
+    and for the default evaluate() entry point.
+    """
+    t0 = time.time()
+    try:
+        ns = _load_candidate_namespace(program_path)
+        fps = _functions_present_score(ns)
+        metrics = _full_metric_bundle(ns, fps)
+        t1 = time.time()
+        metrics.update(
+            {
+                "syntax_valid": 1.0,
+                "module_loaded": 1.0,
+                "eval_time": float(t1 - t0),
+            }
+        )
         return metrics
     except Exception as exc:
-        # Unexpected failure: capture error and return zero score
-        metrics["combined_score"] = 0.0
-        metrics["error"] = str(exc)
-        metrics["eval_time"] = time.time() - t0
-        return metrics
+        t1 = time.time()
+        return {
+            "syntax_valid": 0.0,
+            "module_loaded": 0.0,
+            "functions_present_score": 0.0,
+            "mg_score": 0.0,
+            "yukawa_score": 0.0,
+            "gw_score": 0.0,
+            "lambda_eff_score": 0.0,
+            "Hmg_score": 0.0,
+            "combined_score": 0.0,
+            "eval_time": float(t1 - t0),
+            "error": f"{exc}\n{traceback.format_exc()}",
+        }
+
+# ============================================================
+# Compatibility entry point
+# ============================================================
+
+def evaluate(program_path: str) -> Dict[str, float]:
+    """
+    Default entry point expected by OpenEvolve when cascade_evaluation is off.
+    When cascade_evaluation is on, the framework calls evaluate_stage1 and
+    evaluate_stage2 directly according to cascade_thresholds.
+    """
+    return evaluate_stage2(program_path)
 
 
-__all__ = ["evaluate"]
+__all__ = ["evaluate", "evaluate_stage1", "evaluate_stage2"]
