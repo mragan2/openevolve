@@ -1,27 +1,27 @@
 """
-Evaluator for discovering missing terms in H(a) using OpenEvolve.
+Evaluator for missing-term discovery using a massive-graviton H(a) target.
 
-This evaluator expects candidate programs that:
-  - Define a baseline ΛCDM H(a)
-  - Contain an EVOLVE block with a function:
-        correction_term(a)
-  - Define a public function:
-        prediction(a)
+This expects candidate programs (or EVOLVE blocks) that define:
 
-Evolution modifies ONLY correction_term(a).
+    def prediction(a: ArrayLike) -> ArrayLike:
 
-This evaluator:
-  • Stitches EVOLVE blocks into the locked scaffold initial_program.py
-  • Loads the resulting module
-  • Checks function existence
-  • Computes physics-based metrics:
-        - Fit to synthetic or real H(a) data
-        - Early-time suppression
-        - Smoothness (first derivative)
-        - Curvature (second derivative)
-        - Smallness of correction at a=1
-        - Boundedness penalties
-  • Combines metrics into a single score
+where:
+    prediction(a) = H_LCDM(a) * (1.0 + correction_term(a))
+
+The evaluator:
+
+  * Stitches EVOLVE blocks into the locked scaffold initial_program.py
+  * Loads the resulting module as a namespace
+  * Checks that prediction(a) exists
+  * Computes physics-based metrics by comparing prediction(a)
+    to a synthetic H_target(a) generated from a phenomenological
+    massive-graviton H(a) with:
+
+        m_g = 8.012922413646382e-70 kg
+
+The goal of evolution is to discover a correction_term(a) that acts
+as an effective "missing term" reproducing the massive-graviton H(a)
+while remaining small, smooth, and physically plausible.
 """
 
 from __future__ import annotations
@@ -31,10 +31,10 @@ import logging
 import math
 import numpy as np
 import os
+import runpy
 import tempfile
 import traceback
 import uuid
-import runpy
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, Any
@@ -46,7 +46,7 @@ LOGGER = logging.getLogger(__name__)
 # ============================================================
 
 REQUIRED_FUNCTIONS = [
-    "prediction",      # full H(a) = H_LCDM(a)*(1+δ(a))
+    "prediction",
 ]
 
 # ============================================================
@@ -158,7 +158,6 @@ def _load_candidate_namespace(program_path: str) -> SimpleNamespace:
         full_source = _build_locked_program(scaffold_source, block)
         return _execute_stitched(full_source)
     except ValueError:
-        # No EVOLVE block → full module
         return _import_full(str(full_path))
 
 
@@ -175,26 +174,48 @@ def _functions_present_score(ns: Any) -> float:
 
 
 # ============================================================
-# Physics-inspired scoring
+# Massive-graviton target H(a)
 # ============================================================
 
-H0_REF = 70.0
+M_G_TRUE = 8.012922413646382e-70
+H0_TRUE = 2.2e-18
 
-# synthetic scale factor grid for testing
+OMEGA_M = 0.3
+OMEGA_R = 9.0e-5
+OMEGA_L = 1.0 - OMEGA_M - OMEGA_R
+
 A_GRID = np.linspace(0.05, 1.0, 30)
 
-# synthetic “true” H(a) assuming ΛCDM only
-def H_LCDM(a):
-    Omega_m = 0.3
-    Omega_r = 9e-5
-    Omega_L = 1.0 - Omega_m - Omega_r
-    return H0_REF * np.sqrt(Omega_r * a**(-4) +
-                            Omega_m * a**(-3) +
-                            Omega_L)
 
-H_TRUE = H_LCDM(A_GRID)
-H_ERR = 0.05 * H_TRUE  # nominal 5% uncertainty
+def H_LCDM(a: np.ndarray, H0: float = H0_TRUE) -> np.ndarray:
+    a = np.asarray(a, dtype=float)
+    return H0 * np.sqrt(
+        OMEGA_R * a**(-4) +
+        OMEGA_M * a**(-3) +
+        OMEGA_L
+    )
 
+
+def H_mg_phenomenological(a: np.ndarray,
+                          m_g: float = M_G_TRUE,
+                          H0: float = H0_TRUE) -> np.ndarray:
+    a = np.asarray(a, dtype=float)
+    H_lcdm = H_LCDM(a, H0=H0)
+
+    eps_mg = m_g / M_G_TRUE
+    bump = 0.05 * eps_mg * np.exp(-((1.0 - a)**2) / 0.1)
+
+    H_sq = H_lcdm**2 * (1.0 + bump)
+    return np.sqrt(np.maximum(H_sq, 0.0))
+
+
+H_TARGET = H_mg_phenomenological(A_GRID, m_g=M_G_TRUE, H0=H0_TRUE)
+H_ERR = 0.05 * H_TARGET
+
+
+# ============================================================
+# Physics-inspired scoring
+# ============================================================
 
 def _physics_metrics(ns: Any) -> Dict[str, float]:
     metrics = {
@@ -208,54 +229,40 @@ def _physics_metrics(ns: Any) -> Dict[str, float]:
 
     try:
         pred = ns.prediction(A_GRID)
+        pred = np.asarray(pred, dtype=float)
     except Exception:
         return metrics
 
-    # ------------------------------------------------------------
-    # Fit score: χ²-like
-    # ------------------------------------------------------------
-    chi2 = np.sum(((pred - H_TRUE) / H_ERR)**2)
+    chi2 = np.sum(((pred - H_TARGET) / H_ERR)**2)
     metrics["fit_score"] = 1.0 / (1.0 + chi2 / len(A_GRID))
 
-    # ------------------------------------------------------------
-    # Early suppression: correction small at a=0.05
-    # ------------------------------------------------------------
     try:
-        d0 = (pred[0] - H_TRUE[0]) / H_TRUE[0]
+        d0 = (pred[0] - H_LCDM(A_GRID[0])) / H_LCDM(A_GRID[0])
         metrics["early_suppression_score"] = 1.0 / (1.0 + 50.0 * abs(d0))
     except Exception:
         pass
 
-    # ------------------------------------------------------------
-    # Smoothness (first derivative)
-    # ------------------------------------------------------------
     try:
         slope = np.gradient(pred, A_GRID)
-        metrics["smoothness_score"] = 1.0 / (1.0 + np.std(slope) / np.mean(np.abs(slope) + 1e-9))
+        metrics["smoothness_score"] = 1.0 / (
+            1.0 + np.std(slope) / (np.mean(np.abs(slope)) + 1e-9)
+        )
     except Exception:
         pass
 
-    # ------------------------------------------------------------
-    # Curvature (second derivative)
-    # ------------------------------------------------------------
     try:
         curv = np.gradient(np.gradient(pred, A_GRID), A_GRID)
-        metrics["curvature_score"] = 1.0 / (1.0 + np.mean(np.abs(curv)) / np.mean(pred))
+        metrics["curvature_score"] = 1.0 / (
+            1.0 + np.mean(np.abs(curv)) / (np.mean(pred) + 1e-9)
+        )
     except Exception:
         pass
 
-    # ------------------------------------------------------------
-    # delta(a=1) should be small unless data demands otherwise
-    # ------------------------------------------------------------
     try:
-        d1 = (pred[-1] - H_TRUE[-1]) / H_TRUE[-1]
+        d1 = (pred[-1] - H_TARGET[-1]) / H_TARGET[-1]
         metrics["delta_today_score"] = 1.0 / (1.0 + abs(d1))
     except Exception:
         pass
-
-    # ------------------------------------------------------------
-    # Combined score
-    # ------------------------------------------------------------
 
     weights = dict(
         fit_score=0.50,
@@ -266,8 +273,7 @@ def _physics_metrics(ns: Any) -> Dict[str, float]:
     )
 
     num = sum(metrics[k] * w for k, w in weights.items())
-    den = sum(weights.values())
-    metrics["combined_score"] = max(0.0, min(1.0, num / den))
+    metrics["combined_score"] = max(0.0, min(1.0, num / sum(weights.values())))
 
     return metrics
 
@@ -276,33 +282,44 @@ def _physics_metrics(ns: Any) -> Dict[str, float]:
 # Stage 1 evaluation
 # ============================================================
 
-def evaluate_stage1(program_path: str) -> Dict[str, float]:
+def evaluate_stage1(program_path: str) -> Dict[str, Any]:
     try:
         ns = _load_candidate_namespace(program_path)
         fps = _functions_present_score(ns)
 
-        return {
+        metrics = {
             "syntax_valid": 1.0,
             "module_loaded": 1.0,
             "functions_present_score": fps,
             "combined_score": fps,
         }
 
-    except Exception as exc:
         return {
+            "metrics": metrics,
+            "combined_score": metrics["combined_score"],
+        }
+
+    except Exception as exc:
+        metrics = {
             "syntax_valid": 0.0,
             "module_loaded": 0.0,
             "functions_present_score": 0.0,
             "combined_score": 0.0,
+        }
+        return {
+            "metrics": metrics,
+            "combined_score": metrics["combined_score"],
             "error": f"{exc}\n{traceback.format_exc()}",
         }
 
 
+
+
 # ============================================================
-# Stage 2 evaluation (full physics)
+# Stage 2 evaluation
 # ============================================================
 
-def evaluate_stage2(program_path: str) -> Dict[str, float]:
+def evaluate_stage2(program_path: str) -> Dict[str, Any]:
     try:
         ns = _load_candidate_namespace(program_path)
         fps = _functions_present_score(ns)
@@ -313,23 +330,32 @@ def evaluate_stage2(program_path: str) -> Dict[str, float]:
             "module_loaded": 1.0,
             "functions_present_score": fps,
         })
-        return metrics
+
+        return {
+            "metrics": metrics,
+            "combined_score": metrics.get("combined_score", 0.0),
+        }
 
     except Exception as exc:
-        return {
+        metrics = {
             "syntax_valid": 0.0,
             "module_loaded": 0.0,
             "functions_present_score": 0.0,
             "combined_score": 0.0,
+        }
+        return {
+            "metrics": metrics,
+            "combined_score": metrics["combined_score"],
             "error": f"{exc}\n{traceback.format_exc()}",
         }
+
 
 
 # ============================================================
 # Compatibility entry point
 # ============================================================
 
-def evaluate(program_path: str) -> Dict[str, float]:
+def evaluate(program_path: str) -> Dict[str, Any]:
     return evaluate_stage2(program_path)
 
 

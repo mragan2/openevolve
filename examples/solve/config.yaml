@@ -1,6 +1,7 @@
 # Configuration for massive graviton / dark energy evolution
 max_iterations: 150
 checkpoint_interval: 10
+diff_based_evolution: false
 log_level: "INFO"
 random_seed: 42
 
@@ -8,15 +9,15 @@ random_seed: 42
 llm:
   # Ensemble configuration
   models:
-    - name: "gpt-oss:120b-cloud"
-      weight: 0.4
-      reasoning_effort: high
     - name: "qwen2.5-coder:7b"
-      weight: 0.6
+      weight: 0.8
+    - name: "gpt-oss:20b-cloud"
+      weight: 0.2
+      reasoning_effort: high
 
   evaluator_models:
-    - name: "gpt-oss:120b-cloud"
-      weight: 0.4
+    - name: "gpt-oss:20b-cloud"
+      weight: 1
       reasoning_effort: high
       
   api_base: "http://localhost:11434/v1"
@@ -34,10 +35,17 @@ prompt:
     You are an expert cosmologist specializing in analytic reconstruction of missing physical terms in the Hubble expansion history.
 
     You will be given an initial program that includes:
-      • A trusted ΛCDM baseline H(a)
-      • A final prediction H_total(a) = H_LCDM(a) * (1 + correction_term(a))
+      • A trusted ΛCDM baseline H_LCDM(a)
+      • An evolvable correction_term(a) inside an EVOLVE block
+      • A final prediction function:
+            prediction(a) = H_LCDM(a) * (1 + correction_term(a))
 
-    Your task is to rewrite ONLY the EVOLVE block, replacing the body of correction_term(a) with a compact, smooth, dimensionally-consistent analytic expression that represents a plausible “missing physical term” in the expansion history.
+    The evaluator compares prediction(a) to a synthetic H(a) generated from
+    a massive-graviton cosmological model with a very small graviton mass.
+    Your task is to rewrite ONLY the EVOLVE block, replacing the body of
+    correction_term(a) with a compact, smooth, dimensionally-consistent
+    analytic expression that represents a plausible “missing physical term”
+    in the expansion history.
 
     STRICT RULES:
       1. Modify ONLY the code inside the EVOLVE block. Do not edit any other part of the file.
@@ -54,16 +62,14 @@ prompt:
       4. Keep the expression compact (few operations). Simpler is better unless complexity improves physics score.
       5. The correction term must not override the ΛCDM baseline. It should represent a small correction, not a replacement.
 
-    Your goal is to propose a correction term that significantly improves the evaluator’s physics metrics:
-      • Better match to the synthetic H(a) data (fit_score)
+    Your goal is to propose a correction term that significantly improves the evaluator’s physics metrics when comparing prediction(a) to the massive-graviton H(a):
+      • Better match to the target H(a) data (fit_score)
       • Suppressed at early times (early_suppression_score)
       • Smooth (smoothness_score)
       • Small curvature (curvature_score)
       • Small correction today (delta_today_score)
 
     Produce only valid Python code inside the EVOLVE block. Do not include text or comments outside the function.
-
-
   num_top_programs: 4
   num_diverse_programs: 1     # strict: keep diversity low but not zero
 
@@ -120,8 +126,8 @@ evaluator:
   parallel_evaluations: 4
 
   use_llm_feedback: true
-  llm_feedback_weight: 0.1
-
+  llm_feedback_weight: 0.5
+  
 # Evolution trace
 evolution_trace:
   enabled: false
