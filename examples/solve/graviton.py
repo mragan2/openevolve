@@ -28,10 +28,7 @@ import pathlib
 # ----------------------------------------------------------
 # Import your massive-gravity model (same file you already use)
 # ----------------------------------------------------------
-from examples.graviton.your_massive_gravity_module import (
-    H_mg_phenomenological,
-    M_G_REF
-)
+from examples.solve.initial_program import H_mg_phenomenological, M_G_REF_global as M_G_REF
 
 # ----------------------------------------------------------
 # Default cosmology
@@ -69,7 +66,7 @@ def compute_Hmg_eff(candidate, a):
     H_LCDM = candidate.H_LCDM(a)
     delta = candidate.correction_term(a)
 
-    H_tot_sq = (H_LCDM * (1 + delta))**2
+    H_tot_sq = (H_LCDM * (1 + delta)) ** 2
     H_LCDM_sq = H_LCDM**2
 
     return H_tot_sq - H_LCDM_sq
@@ -84,7 +81,7 @@ def mg_loss(m_g, a, Hmg_eff, H0):
     model H_mg_phenomenological(a, m_g, H0).
     """
     pred = np.array([H_mg_phenomenological(ai, m_g, H0) for ai in a])
-    return np.mean((Hmg_eff - pred)**2)
+    return np.mean((Hmg_eff - pred) ** 2)
 
 
 # ----------------------------------------------------------
@@ -106,18 +103,11 @@ def fit_graviton_mass(candidate_path):
     # search range:
     # 10^-75 kg to 10^-28 kg (covers all physically relevant masses)
     result = minimize_scalar(
-        mg_loss,
-        bounds=(1e-75, 1e-28),
-        args=(a, Hmg_eff, H0_DEFAULT),
-        method="bounded"
+        mg_loss, bounds=(1e-75, 1e-28), args=(a, Hmg_eff, H0_DEFAULT), method="bounded"
     )
 
     best_mg = result.x
-    return {
-        "best_m_g": best_mg,
-        "best_m_g_over_Mref": best_mg / M_G_REF,
-        "loss": result.fun
-    }
+    return {"best_m_g": best_mg, "best_m_g_over_Mref": best_mg / M_G_REF, "loss": result.fun}
 
 
 # ----------------------------------------------------------
