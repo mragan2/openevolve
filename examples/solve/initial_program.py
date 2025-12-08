@@ -1,86 +1,56 @@
 """
-Initial program for missing-term reconstruction in H(a).
-
-Defines:
-    - H_LCDM(a)
-    - correction_term(a)
-    - prediction(a)
-
-Fully compatible with STRICT evaluator and STRICT prompt.
+Massive Graviton Cosmology Scaffold (Honest Version).
 """
-
-from __future__ import annotations
+import math
 import numpy as np
 
-# ------------------------------------------------------------
-# Default cosmological parameters (must match evaluator)
-# ------------------------------------------------------------
-H0_DEFAULT = 2.2e-18
-OMEGA_M_DEFAULT = 0.3
-OMEGA_R_DEFAULT = 9e-5
-OMEGA_L_DEFAULT = 1.0 - OMEGA_M_DEFAULT - OMEGA_R_DEFAULT
+# --- GLOBAL CONSTANTS ---
+c_global = 2.99792458e8
+hbar_global = 1.0545718e-34
 
+# CRITICAL UPDATE: 8.1e-69 kg corresponds to lambda_g = 4.6 GLY
+M_G_REF_global = 8.1e-69  
 
-# ------------------------------------------------------------
-# ΛCDM expansion history (unchanged)
-# ------------------------------------------------------------
-def H_LCDM(a: np.ndarray,
-           H0: float = H0_DEFAULT,
-           Omega_m: float = OMEGA_M_DEFAULT,
-           Omega_r: float = OMEGA_R_DEFAULT,
-           Omega_L: float = OMEGA_L_DEFAULT) -> np.ndarray:
-
-    a = np.asarray(a, dtype=float)
-    return H0 * np.sqrt(Omega_r / a**4 + Omega_m / a**3 + Omega_L)
-
-
-# ------------------------------------------------------------
-# EVOLVE BLOCK — ONLY THIS WILL BE REWRITTEN
-# ------------------------------------------------------------
-def correction_term(a):
+# EVOLVE-BLOCK-START
+def H_mg_phenomenological(a, m_g, H0):
     """
-    Strictly constrained neutral δ(a) starting point.
-    Only allowed basis functions are present.
-    Coefficients are tiny, safe, and monotonic.
+    Calculates the graviton-induced contribution to H^2(a).
+    Must return a value with units [T^-2].
     """
+    # LOCAL CONSTANTS
+    c = c_global
+    hbar = hbar_global
+    
+    # AI TASK: Find a stable modification to expansion history
+    # Hint: Simply adding H0^2 is too unstable. 
+    # Try scaling by a small dimensionless factor or coupling constant.
+    return H0**2 * 0.0 # Placeholder: Currently does nothing
 
-    a = np.asarray(a, dtype=float)
-
-    BASIS_1 = (a**2) / (1.0 + a**2)
-    BASIS_2 = (a**3) / (1.0 + a**3)
-    BASIS_3 = np.log1p(a)
-    BASIS_4 = a
-    BASIS_5 = a**2
-
-    # Tiny neutral coefficients — evolution will rewrite them.
-    c1 = 0.0
-    c2 = 0.0
-    c3 = 0.0
-    c4 = 0.0
-    c5 = 0.0
-
-    delta = (
-        c1 * BASIS_1 +
-        c2 * BASIS_2 +
-        c3 * BASIS_3 +
-        c4 * BASIS_4 +
-        c5 * BASIS_5
-    )
-
-    return delta
+def lambda_eff_from_mg(m_g):
+    """
+    Maps graviton mass m_g (kg) to effective cosmological constant (m^-2).
+    STRICT MODE: Must return physical calculation.
+    """
+    # LOCAL CONSTANTS
+    c = c_global
+    hbar = hbar_global
+    
+    # PHYSICS: The cosmological constant Lambda is related to the inverse 
+    # square of the Compton wavelength.
+    # Lambda ~ (1/lambda_g)^2 = (m_g * c / hbar)^2
+    
+    val = (m_g * c / hbar)**2
+    
+    # We allow the AI to tune a dimensionless pre-factor (coupling constant 'alpha')
+    # but it MUST be proportional to val.
+    alpha = 1.0 # AI can evolve this number
+    
+    return alpha * val
 # EVOLVE-BLOCK-END
 
-
-# ------------------------------------------------------------
-# Full reconstructed expansion history
-# ------------------------------------------------------------
-def prediction(a: np.ndarray,
-               H0: float = H0_DEFAULT,
-               Omega_m: float = OMEGA_M_DEFAULT,
-               Omega_r: float = OMEGA_R_DEFAULT,
-               Omega_L: float = OMEGA_L_DEFAULT) -> np.ndarray:
-
-    a = np.asarray(a, dtype=float)
-    base = H_LCDM(a, H0, Omega_m, Omega_r, Omega_L)
-    delta = correction_term(a)
-    return base * (1.0 + delta)
+# --- PREDICTION FUNCTION ---
+def get_phenomenology(a_val, m_g_val):
+    H0_SI = 2.2e-18
+    H2_contrib = H_mg_phenomenological(a_val, m_g_val, H0_SI)
+    lambda_eff = lambda_eff_from_mg(m_g_val)
+    return H2_contrib, lambda_eff
