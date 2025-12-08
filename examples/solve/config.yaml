@@ -1,5 +1,5 @@
 # Configuration for massive graviton / dark energy evolution
-max_iterations: 150
+max_iterations: 1000
 checkpoint_interval: 10
 diff_based_evolution: false
 log_level: "INFO"
@@ -7,128 +7,104 @@ random_seed: 42
 
 # LLM configuration
 llm:
-  # Ensemble configuration
+  # We use ONLY Qwen 14B. It fits in 12GB (takes ~9GB).
   models:
-    - name: "qwen2.5-coder:7b"
-      weight: 0.8
-    - name: "gpt-oss:20b-cloud"
-      weight: 0.2
-      reasoning_effort: high
+    - name: "qwen2.5:14b-instruct-q4_K_M"
+      weight: 1.0
 
-  evaluator_models:
-    - name: "gpt-oss:20b-cloud"
-      weight: 1
-      reasoning_effort: high
-      
+  # REMOVED separate evaluator_models to prevent swapping lag.
   api_base: "http://localhost:11434/v1"
   api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'
-  temperature: 0.25
+  temperature: 0.8
   top_p: 0.95
-  max_tokens: 4096     # keep this lower for Ollama
-  timeout: 60
+  max_tokens: 2048
+  timeout: 300
   retries: 3
-  retry_delay: 5    
-
+  retry_delay: 5
+  
 # Prompt configuration
 prompt:
+  # FIXED: Added '|' for multi-line string
   system_message: |
-    You are an expert cosmologist specializing in analytic reconstruction of missing physical terms in the Hubble expansion history.
+    You are a numerical cosmologist specializing in reconstruction of expansion history H(a).
+    
+    Task:
+      You are given a Python module that defines a correction term to the standard LCDM model.
+      Your job is to optimize the coefficients in the `correction_term(a)` function inside the
+      EVOLVE block to reconstruct a "hidden" cosmological signal.
+    
+    The Scaffold:
+      - The system defines `prediction(a) = H_LCDM(a) * (1 + correction_term(a))`
+      - Your goal is to make `prediction(a)` match the hidden truth data.
+    
+    Your Evolution Targets (The "Basis" Functions):
+      The function `correction_term(a)` is a linear combination of basis functions:
+        - BASIS_1 = a^2 / (1 + a^2)
+        - BASIS_2 = a^3 / (1 + a^3)
+        - BASIS_3 = log(1 + a)
+        - BASIS_4 = a
+        - BASIS_5 = a^2
+      
+      You must tweak the coefficients `c1`, `c2`, `c3`, `c4`, `c5` to minimize the fit error.
+      
+    Coding Constraints:
+      - MODIFY ONLY the coefficients `c1`, `c2`, `c3`, `c4`, `c5` inside `correction_term`.
+      - Do NOT change the basis function definitions.
+      - Do NOT import new libraries.
+      - Ensure coefficients remain small (order 0.001 to 0.1).
+      - Do NOT use functions like `H_mg_phenomenological`.
 
-    You will be given an initial program that includes:
-      • A trusted ΛCDM baseline H_LCDM(a)
-      • An evolvable correction_term(a) inside an EVOLVE block
-      • A final prediction function:
-            prediction(a) = H_LCDM(a) * (1 + correction_term(a))
+    Output requirement:
+      - Return a complete Python module where:
+          * There is exactly one EVOLVE block.
+          * Everything outside the EVOLVE block is identical to the previous program.
+          * Only the coefficients inside `correction_term` are modified.
 
-    The evaluator compares prediction(a) to a synthetic H(a) generated from
-    a massive-graviton cosmological model with a very small graviton mass.
-    Your task is to rewrite ONLY the EVOLVE block, replacing the body of
-    correction_term(a) with a compact, smooth, dimensionally-consistent
-    analytic expression that represents a plausible “missing physical term”
-    in the expansion history.
-
-    STRICT RULES:
-      1. Modify ONLY the code inside the EVOLVE block. Do not edit any other part of the file.
-      2. Your correction term MUST:
-         • be small at early times (a << 1)
-         • be smooth and differentiable
-         • be dimensionless
-         • avoid divergences, discontinuities, or extremely large corrections
-         • avoid oscillatory or pathological expressions unless strongly justified
-      3. Prefer simple symbolic expressions:
-         • polynomials (a, a**2, a**3)
-         • rational forms (a/(1+a), a**2/(1+a**2))
-         • logarithms or exponentials (log(1+a), exp(-a))
-      4. Keep the expression compact (few operations). Simpler is better unless complexity improves physics score.
-      5. The correction term must not override the ΛCDM baseline. It should represent a small correction, not a replacement.
-
-    Your goal is to propose a correction term that significantly improves the evaluator’s physics metrics when comparing prediction(a) to the massive-graviton H(a):
-      • Better match to the target H(a) data (fit_score)
-      • Suppressed at early times (early_suppression_score)
-      • Smooth (smoothness_score)
-      • Small curvature (curvature_score)
-      • Small correction today (delta_today_score)
-
-    Produce only valid Python code inside the EVOLVE block. Do not include text or comments outside the function.
   num_top_programs: 4
-  num_diverse_programs: 1     # strict: keep diversity low but not zero
-
-  use_template_stochasticity: false   # strict: deterministic prompting
-  
+  num_diverse_programs: 1
+  use_template_stochasticity: false
   template_variations:
+    # FIXED: Added '|' for multi-line string (if you add content later)
     improvement_suggestion:
       - "Here are required corrections:"
-
+      
   include_artifacts: true
   max_artifact_bytes: 20480
   artifact_security_filter: true
-
   suggest_simplification_after_chars: 400
   include_changes_under_chars: 100
   concise_implementation_max_lines: 10
   comprehensive_implementation_min_lines: 60
-  
 
-# Database configuration
 database:
   db_path: null
   in_memory: true
   log_prompts: true
-
-  # STRICT population control
-  population_size: 80          # very small and stable
+  population_size: 20        
   archive_size: 50
-  num_islands: 3               # fewer islands = less diversity
-  migration_interval: 75
-  migration_rate: 0.05         # very low migration
-
-  elite_selection_ratio: 0.20   # strict: strong selection pressure
-  exploration_ratio: 0.10       # strict: low exploration
-  exploitation_ratio: 0.70      # stable exploitation
-
+  num_islands: 1             
+  migration_interval: 25
+  migration_rate: 0.05
+  elite_selection_ratio: 0.20
+  exploration_ratio: 0.15
+  exploitation_ratio: 0.70
   feature_dimensions:
     - "complexity"
     - "diversity"
-
   feature_bins: 8
-  diversity_reference_size: 10   # strict: lower diversity reference
+  diversity_reference_size: 10
 
-# Evaluator configuration
 evaluator:
   timeout: 300
   max_retries: 3
-
-  cascade_evaluation: true
+  cascade_evaluation: true   
   cascade_thresholds:
-    - 0.6
+    - 0.6                    
     - 0.92
-
-  parallel_evaluations: 4
-
-  use_llm_feedback: true
+  parallel_evaluations: 1    
+  use_llm_feedback: false
   llm_feedback_weight: 0.5
-  
-# Evolution trace
+
 evolution_trace:
   enabled: false
   format: 'jsonl'
