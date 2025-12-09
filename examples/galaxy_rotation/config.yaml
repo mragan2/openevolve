@@ -1,0 +1,56 @@
+
+# OpenEvolve: The Dark Matter Killer
+max_iterations: 100
+checkpoint_interval: 10
+log_level: "INFO"
+
+llm:
+  # Using your Cloud Setup for max intelligence
+  primary_model: "qwen3-coder:480b-cloud"
+  primary_model_weight: 1.0
+  api_base: "http://localhost:11434/v1"
+  api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
+  
+  temperature: 0.8
+  top_p: 0.95
+  max_tokens: 8192
+  timeout: 600
+
+prompt:
+  system_message: |
+    Jesteś fizykiem pracującym nad Modyfikowaną Grawitacją (MOG/Yukawa).
+    
+    PROBLEM:
+    Galaktyki wirują za szybko. Standardowa grawitacja (Newton) daje `v_baryonic`.
+    Obserwacje (`v_obs`) są znacznie wyższe na krawędziach.
+    
+    ZADANIE:
+    Napisz funkcję `calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed)`.
+    Musisz dodać "siłę Yukawy" pochodzącą od masywnego grawitonu, aby podbić prędkość.
+    
+    Wzór ogólny: V_total = sqrt( v_baryonic^2 + V_yukawa^2 )
+    
+    Gdzie V_yukawa zależy od masy M_enclosed i stałej sprzężenia alpha.
+    Użyj masy grawitonu (m_g ~ 10^-69) lub skali długości (lambda ~ 4.6 Gly = 1.4e26 m).
+    UWAGA: Skala galaktyczna (kpc) jest DUŻO mniejsza niż lambda. Musisz znaleźć efekt "screening" lub "Vainshtein".
+
+  num_top_programs: 3
+  use_template_stochasticity: true
+
+database:
+  population_size: 40
+  archive_size: 15
+  num_islands: 2
+  elite_selection_ratio: 0.2
+  exploitation_ratio: 0.6
+
+evaluator:
+  timeout: 60
+  cascade_evaluation: true
+  parallel_evaluations: 1
+  use_llm_feedback: false
+
+evolution_settings:
+  diff_based_evolution: false
+  allow_full_rewrites: true
+  max_code_length: 10000
