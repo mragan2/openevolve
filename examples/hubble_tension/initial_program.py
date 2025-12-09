@@ -30,7 +30,7 @@ def H_mg_phenomenological(a, m_g):
     Dla m_g = M_G_REF i a = 1 zwraca w przybliżeniu
         H_mg_phenomenological(1, M_G_REF) ≈ OMEGA_MG_MAG * H0_SQ_MAG.
     
-    Zmiana: a_factor = 1.0 (stała gęstość ciemnej energii).
+    Zmiana: a_factor = a ** epsilon (dynamiczna gęstość ciemnej energii).
     """
     # Stałe lokalne
     c = c_global
@@ -46,9 +46,30 @@ def H_mg_phenomenological(a, m_g):
     # Skalowanie masowe: (m_g / M_G_REF)^2
     mass_factor = (m_g / M_G_REF) ** 2
 
-    # CRITICAL UPDATE: Constant scaling (a^0) instead of dynamic (a^2).
-    # This simulates a true Cosmological Constant behavior.
-    a_factor = 1.0
+    # Skalowanie masowe: (m_g / M_G_REF)^2
+    mass_factor = (m_g / M_G_REF) ** 2
+
+    # CRITICAL UPDATE: Dynamical Dark Energy with smooth transition
+    # This interpolates between H0_Early (67) and H0_Late (73) km/s/Mpc
+    # Convert H0 values to dimensionless acceleration parameters
+    H0_early_sq = (67e3 / 3.086e22)**2  # 67 km/s/Mpc converted to s^-2
+    H0_late_sq = (73e3 / 3.086e22)**2   # 73 km/s/Mpc converted to s^-2
+    
+    # Normalized transition parameter (0 at early times, 1 at late times)
+    # Using sigmoid-like transition for smooth interpolation
+    transition_width = 0.252
+    transition_midpoint = 0.555
+    transition_factor = 1.0 / (1.0 + math.exp(-((a - transition_midpoint) / transition_width)))
+    
+    # Dynamical scaling that interpolates between early and late H0 values
+    H0_ratio = H0_late_sq / H0_early_sq
+    dynamical_factor = 1.0 + (H0_ratio - 1.0) * transition_factor
+    
+    # Additional power-law scaling for fine-tuning
+    epsilon = -0.085  # Small power-law correction
+    power_factor = a ** epsilon
+    
+    a_factor = dynamical_factor * power_factor
 
     # Wkład do H^2(a) od masywnego grawitonu
     return H0_SQ * OMEGA_MG * mass_factor * a_factor
