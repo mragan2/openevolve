@@ -53,6 +53,5 @@ evaluator:
   use_llm_feedback: false
 
 # Evolution settings
-diff_based_evolution: false
-allow_full_rewrites: true  # Definitely allow full rewrites
-max_code_length: 100000
+diff_based_evolution: false  # Use full rewrites instead of diffs
+allow_full_rewrites: true    # Allow full rewrites for constructor functions

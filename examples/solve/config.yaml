@@ -1,166 +1,79 @@
-# OpenEvolve Configuration
-# Customized for: DeepSeek-R1-7B (Local Ollama)
-# Fixes applied: Strict code-only prompting, disabled cascade evaluation
-
-# General settings
-max_iterations: 1000                  # Maximum number of evolution iterations
-checkpoint_interval: 10               # Save checkpoints every N iterations
-log_level: "INFO"                     # Logging level
-log_dir: null                         # Custom directory for logs
-random_seed: 42                       # Random seed for reproducibility
-
-# Evolution settings
-diff_based_evolution: false           # FALSE = Safer for 7B models (rewrites entire file)
-max_code_length: 10000                # Maximum allowed code length in characters
-
-# Early stopping settings
-early_stopping_patience: null         # Disabled
-convergence_threshold: 0.001          
-early_stopping_metric: "combined_score"
+# OpenEvolve Configuration (Stable Compatible Version)
+# Derived from phase_1 / phase_2 templates
 
 # ----------------------------------------------------------------
-# LLM CONFIGURATION (Ollama / Local)
+# GENERAL SETTINGS
+# ----------------------------------------------------------------
+max_iterations: 100
+checkpoint_interval: 10
+log_level: "INFO"
+
+# ----------------------------------------------------------------
+# LLM CONFIGURATION
 # ----------------------------------------------------------------
 llm:
-  # Models for evolution
-  models:
-    - name: "qwen2.5-coder:7b"          # YOUR LOCAL MODEL
-      weight: 1.0
-
-  # Models for LLM feedback (Optional, using same model)
-  evaluator_models:
-    - name: "qwen2.5-coder:7b"
-      weight: 1.0
-
-  # API configuration
-  api_base: "http://localhost:11434/v1"  # Local Ollama endpoint
-  api_key: 'ollama'                      # Required dummy key for Ollama
-
-  # Generation parameters
-  temperature: 0.6                       # Lower temperature = more stable code
-  top_p: 0.95                            
-  max_tokens: 8192                       # High context for code files
-
-  # Request parameters
-  timeout: 600                           # Increased timeout for local inference
-  retries: 3                             
-  retry_delay: 5                         
+  primary_model: "qwen2.5-coder:7b"
+  primary_model_weight: 0.8
+  api_base: "http://localhost:11434/v1"
+  api_key: "ollama"
+  temperature: 0.7
+  top_p: 0.95
+  max_tokens: 8192
+  timeout: 600
 
 # ----------------------------------------------------------------
-# PROMPT CONFIGURATION (The Critical Fix)
+# PROMPT CONFIGURATION
 # ----------------------------------------------------------------
 prompt:
-  template_dir: null
-  
-  # SYSTEM MESSAGE: Force code-only output to prevent "No valid code" errors
   system_message: |
-    You are a theoretical physicist and numerical cosmologist specializing in Massive Gravity.
+    Jesteś teoretykiem fizyki i kosmologiem numerycznym specjalizującym się w grawitacji masywnego grawitonu.
 
-    Task:
-      Derive the effective field theory for Massive Graviton Cosmology by writing the Python functions in the EVOLVE block.
+    Zadanie:
+      Ewoluuj i ulepsz funkcje znajdujące się wewnątrz bloku EVOLVE-BLOCK tak, aby odtworzyć realistyczne
+      przyspieszenie kosmiczne w późnych epokach, pochodzące od pola masywnego grawitonu, bez jawnego użycia
+      parametrów H0.
 
-    CRITICAL PHYSICS CONTEXT:
-      - We have corrected M_G_REF to ~10^-69 kg (Hubble scale).
-      - This means the term (m_g * c / hbar)**2 is naturally approx 10^-52 m^-2.
-      - YOU DO NOT NEED MAGIC NUMBERS. Use the physical constants to derive the value.
+    Kontekst fizyczny:
+      - M_G_REF odpowiada długości Comptonowskiej λ_g ≈ 4.6 Gly, co daje masę ~10^-69 kg.
+      - Wyrażenie (m_g * c / ħ)^2 naturalnie generuje efektywną stałą kosmologiczną λ_eff rzędu ~10^-52 m^-2.
+      - Funkcja H_mg(a, m_g) (odpowiadająca wkładowi masywnego grawitonu do H^2) musi mieć poprawne wymiarowanie
+        fizyczne, tzn. skalować się jak [s^-2].
+      - Funkcja lambda_eff_from_mg(m_g) powinna dawać w przybliżeniu λ_eff ≈ 1.1×10^-52 m^-2, gdy m_g = M_G_REF.
 
-    CRITICAL ANTI-CHEATING RULES:
-      1. NO MAGIC NUMBERS: You are STRICTLY FORBIDDEN from using numbers like '0.7', '1.1e-52', '10^-52' directly.
-      2. NO CONDITIONAL LOGIC: Do not use 'if', 'else' to fake the answer at specific points.
-      3. DERIVATION REQUIRED: 
-         - H_mg must be derived from terms like (m_g * c / hbar).
-         - The function must depend continuously on 'a'.
+    Ograniczenia:
+      - Używaj wyłącznie zmiennych (a, m_g, c, ħ) oraz stałych już zdefiniowanych w pliku (np. c_global, hbar_global, M_G_REF_global),
+        tak aby zachować spójność wymiarową.
+      - Nie stosuj „magicznych” stałych liczbowych ani jawnych parametrów H0 (ani H0^2) jako dodatkowych pokręteł dopasowania.
+      - Nie zmieniaj nazw istniejących funkcji ani sygnatur (np. lambda_eff_from_mg(m_g), H_mg_phenomenological(a, m_g), get_phenomenology).
+      - Nie usuwaj ani nie modyfikuj znaczników EVOLVE-BLOCK-START oraz EVOLVE-BLOCK-END.
+      - Zwracaj wyłącznie czysty kod Pythona, bez jakichkolwiek znaczników Markdown (bez ``` i bez linii zawierającej samo słowo "python").
 
-    CRITICAL CODING RULES:
-      - OUTPUT ONLY CODE. NO EXPLANATIONS.
-      - DO NOT USE <think> TAGS or conversational text.
-      - WRAP CODE IN ```python BLOCKS.
-
-    Your Evolution Targets:
-      1) H_mg_phenomenological(a, m_g, H0)
-         - Must return the graviton's contribution to H^2 (units s^-2).
-         - GOAL: At a=1 and m_g ~ M_G_REF, it should equal roughly 0.7 * H0^2.
-
-      2) lambda_eff_from_mg(m_g)
-         - Must return the effective cosmological constant (units m^-2).
-         - GOAL: Return roughly 1.1e-52 m^-2.
-
-    Coding Constraints:
-      - MODIFY ONLY the code inside the EVOLVE block.
-      - Do NOT change the function signatures.
-      - Do NOT import new libraries.
-      - Use the provided constants (c, hbar, M_G_REF) inside your formulas.
-
-  evaluator_system_message: "You are an expert code reviewer."
-
-  num_top_programs: 3                   
-  num_diverse_programs: 1               
-
-  use_template_stochasticity: false     # Disabled for stability
-  template_variations:                 
-    improvement_suggestion:
-      - "Here are required corrections:"
-
-  include_artifacts: true               
-  max_artifact_bytes: 20480             
-  artifact_security_filter: true        
-
-  suggest_simplification_after_chars: 500       
-  include_changes_under_chars: 100              
-  concise_implementation_max_lines: 10          
-  comprehensive_implementation_min_lines: 50    
+  num_top_programs: 3
+  use_template_stochasticity: true
 
 # ----------------------------------------------------------------
 # DATABASE CONFIGURATION
 # ----------------------------------------------------------------
 database:
-  db_path: null                         
-  in_memory: true                       
-  log_prompts: true                     
-
-  # Evolutionary parameters
-  population_size: 20                   # REDUCED from 1000 for local execution speed
-  archive_size: 50                      
-  num_islands: 1                        # Single island for simplicity
-
-  migration_interval: 25                
-  migration_rate: 0.05                  
-
-  elite_selection_ratio: 0.20           
-  exploration_ratio: 0.5                
-  exploitation_ratio: 0.70              
-
-  feature_dimensions:                   
-    - "complexity"
-    - "diversity"
-   
-  feature_bins: 8                       
-  diversity_reference_size: 10          
+  population_size: 60
+  archive_size: 25
+  num_islands: 4
+  elite_selection_ratio: 0.3
+  exploitation_ratio: 0.7
 
 # ----------------------------------------------------------------
 # EVALUATOR CONFIGURATION
 # ----------------------------------------------------------------
 evaluator:
-  timeout: 300                          
-  max_retries: 3                        
+  timeout: 60
+  cascade_evaluation: true
+  cascade_thresholds: [0.5, 0.75]
+  parallel_evaluations: 4
+  use_llm_feedback: false
 
-  # Cascade evaluation disabled to prevent "Missing evaluate_stage1" warning
-  cascade_evaluation: false             #
-  cascade_thresholds:                   
-    - 0.6                               
-    - 0.92                              
-
-  parallel_evaluations: 1               # Sequential evaluation (GPU cannot handle parallel)
-  
-  use_llm_feedback: false               
-  llm_feedback_weight: 0.5              
-
-# Evolution trace configuration
-evolution_trace:
-  enabled: false                        
-  format: 'jsonl'                       
-  include_code: false                   
-  include_prompts: true                 
-  output_path: null                     
-  buffer_size: 10                       
-  compress: false
+# ----------------------------------------------------------------
+# EVOLUTION SETTINGS
+# ----------------------------------------------------------------
+diff_based_evolution: false
+allow_full_rewrites: true
+max_code_length: 100000

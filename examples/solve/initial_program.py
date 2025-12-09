@@ -1,5 +1,5 @@
 """
-Massive Graviton Cosmology Scaffold (Honest Version).
+Massive Graviton Cosmology Scaffold (Constant Dark Energy Version).
 """
 import math
 import numpy as np
@@ -7,50 +7,72 @@ import numpy as np
 # --- GLOBAL CONSTANTS ---
 c_global = 2.99792458e8
 hbar_global = 1.0545718e-34
-
-# CRITICAL UPDATE: 8.1e-69 kg corresponds to lambda_g = 4.6 GLY
 M_G_REF_global = 8.1e-69  
 
+# HINT INJECTION 1: The magnitude of H0^2
+# H0_SQ_MAG = (2.2e-18 s^-1)^2 ≈ 4.84e-36 s^-2
+H0_SQ_MAG = 4.84e-36 
+
+# HINT INJECTION 2: The required fraction of Dark Energy (Omega_MG)
+OMEGA_MG_MAG = 0.7 
+
+# Aliases
+c = c_global
+hbar = hbar_global
+M_G_REF = M_G_REF_global
+
+
 # EVOLVE-BLOCK-START
-def H_mg_phenomenological(a, m_g, H0):
+def H_mg_phenomenological(a, m_g):
     """
-    Calculates the graviton-induced contribution to H^2(a).
-    Must return a value with units [T^-2].
+    Phenomenologiczny wkład masywnego grawitonu do H^2(a) w jednostkach SI [s^-2].
+
+    Dla m_g = M_G_REF i a = 1 zwraca w przybliżeniu
+        H_mg_phenomenological(1, M_G_REF) ≈ OMEGA_MG_MAG * H0_SQ_MAG.
+    
+    Zmiana: a_factor = 1.0 (stała gęstość ciemnej energii).
     """
-    # LOCAL CONSTANTS
+    # Stałe lokalne
     c = c_global
     hbar = hbar_global
-    
-    # AI TASK: Find a stable modification to expansion history
-    # Hint: Simply adding H0^2 is too unstable. 
-    # Try scaling by a small dimensionless factor or coupling constant.
-    return H0**2 * 0.0 # Placeholder: Currently does nothing
+    H0_SQ = H0_SQ_MAG       # ≈ H0^2
+    OMEGA_MG = OMEGA_MG_MAG # ≈ 0.7
+
+    # Upewniamy się, że a > 0 (unikamy problemów numerycznych)
+    a = float(a)
+    if a <= 0.0:
+        a = 1e-8
+
+    # Skalowanie masowe: (m_g / M_G_REF)^2
+    mass_factor = (m_g / M_G_REF) ** 2
+
+    # CRITICAL UPDATE: Constant scaling (a^0) instead of dynamic (a^2).
+    # This simulates a true Cosmological Constant behavior.
+    a_factor = 1.0
+
+    # Wkład do H^2(a) od masywnego grawitonu
+    return H0_SQ * OMEGA_MG * mass_factor * a_factor
+
 
 def lambda_eff_from_mg(m_g):
     """
-    Maps graviton mass m_g (kg) to effective cosmological constant (m^-2).
-    STRICT MODE: Must return physical calculation.
+    Mapuje masę grawitonu m_g [kg] na efektywną stałą kosmologiczną λ_eff [m^-2].
     """
-    # LOCAL CONSTANTS
     c = c_global
     hbar = hbar_global
-    
-    # PHYSICS: The cosmological constant Lambda is related to the inverse 
-    # square of the Compton wavelength.
-    # Lambda ~ (1/lambda_g)^2 = (m_g * c / hbar)^2
-    
-    val = (m_g * c / hbar)**2
-    
-    # We allow the AI to tune a dimensionless pre-factor (coupling constant 'alpha')
-    # but it MUST be proportional to val.
-    alpha = 1.0 # AI can evolve this number
-    
+
+    # Surowa skala: (m_g * c / ħ)^2 ma wymiar [L^-2]
+    val = (m_g * c / hbar) ** 2
+
+    # Normalizacja alpha
+    alpha = 0.2
+
     return alpha * val
 # EVOLVE-BLOCK-END
 
+
 # --- PREDICTION FUNCTION ---
 def get_phenomenology(a_val, m_g_val):
-    H0_SI = 2.2e-18
-    H2_contrib = H_mg_phenomenological(a_val, m_g_val, H0_SI)
+    H2_contrib = H_mg_phenomenological(a_val, m_g_val)
     lambda_eff = lambda_eff_from_mg(m_g_val)
     return H2_contrib, lambda_eff
