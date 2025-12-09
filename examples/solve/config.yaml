@@ -1,19 +1,17 @@
-# OpenEvolve Configuration (Stable Compatible Version)
-# Derived from phase_1 / phase_2 templates
 
-# ----------------------------------------------------------------
-# GENERAL SETTINGS
-# ----------------------------------------------------------------
+# OpenEvolve Configuration (Stage 2: Optimization)
+# Based on your "Part 2" parameters but tailored for Graviton Physics
+
 max_iterations: 100
 checkpoint_interval: 10
 log_level: "INFO"
 
-# ----------------------------------------------------------------
-# LLM CONFIGURATION
-# ----------------------------------------------------------------
+# LLM CONFIGURATION (Keeping Local Qwen as requested)
 llm:
   primary_model: "qwen2.5-coder:7b"
   primary_model_weight: 0.8
+  secondary_model: "mistral:7b"
+  secondary_model_weight: 0.2
   api_base: "http://localhost:11434/v1"
   api_key: "ollama"
   temperature: 0.7
@@ -21,59 +19,43 @@ llm:
   max_tokens: 8192
   timeout: 600
 
-# ----------------------------------------------------------------
-# PROMPT CONFIGURATION
-# ----------------------------------------------------------------
+# PROMPT CONFIGURATION (Polish Physics Context)
 prompt:
   system_message: |
-    Jesteś teoretykiem fizyki i kosmologiem numerycznym specjalizującym się w grawitacji masywnego grawitonu.
+    Jesteś wybitnym fizykiem teoretycznym. 
+    Twoim zadaniem jest udoskonalenie teorii Masywnej Grawitacji (Massive Gravity).
+    
+    Startujesz z bardzo dobrego rozwiązania (Stage 1 Best). 
+    Twoim celem jest optymalizacja i uproszczenie kodu przy zachowaniu idealnych wyników.
 
-    Zadanie:
-      Ewoluuj i ulepsz funkcje znajdujące się wewnątrz bloku EVOLVE-BLOCK tak, aby odtworzyć realistyczne
-      przyspieszenie kosmiczne w późnych epokach, pochodzące od pola masywnego grawitonu, bez jawnego użycia
-      parametrów H0.
+    CELE:
+    1. H_mg_phenomenological: ~0.7 * H0^2.
+    2. rho_quantum: ~0.7 * rho_crit.
 
-    Kontekst fizyczny:
-      - M_G_REF odpowiada długości Comptonowskiej λ_g ≈ 4.6 Gly, co daje masę ~10^-69 kg.
-      - Wyrażenie (m_g * c / ħ)^2 naturalnie generuje efektywną stałą kosmologiczną λ_eff rzędu ~10^-52 m^-2.
-      - Funkcja H_mg(a, m_g) (odpowiadająca wkładowi masywnego grawitonu do H^2) musi mieć poprawne wymiarowanie
-        fizyczne, tzn. skalować się jak [s^-2].
-      - Funkcja lambda_eff_from_mg(m_g) powinna dawać w przybliżeniu λ_eff ≈ 1.1×10^-52 m^-2, gdy m_g = M_G_REF.
+    Używaj stałych (c, hbar, M_G_REF).
+    Kod musi być poprawnym Pythonem.
 
-    Ograniczenia:
-      - Używaj wyłącznie zmiennych (a, m_g, c, ħ) oraz stałych już zdefiniowanych w pliku (np. c_global, hbar_global, M_G_REF_global),
-        tak aby zachować spójność wymiarową.
-      - Nie stosuj „magicznych” stałych liczbowych ani jawnych parametrów H0 (ani H0^2) jako dodatkowych pokręteł dopasowania.
-      - Nie zmieniaj nazw istniejących funkcji ani sygnatur (np. lambda_eff_from_mg(m_g), H_mg_phenomenological(a, m_g), get_phenomenology).
-      - Nie usuwaj ani nie modyfikuj znaczników EVOLVE-BLOCK-START oraz EVOLVE-BLOCK-END.
-      - Zwracaj wyłącznie czysty kod Pythona, bez jakichkolwiek znaczników Markdown (bez ``` i bez linii zawierającej samo słowo "python").
-
-  num_top_programs: 3
+  num_top_programs: 4
   use_template_stochasticity: true
 
-# ----------------------------------------------------------------
-# DATABASE CONFIGURATION
-# ----------------------------------------------------------------
+# DATABASE CONFIGURATION (Stage 2 Aggressive Settings)
 database:
-  population_size: 60
-  archive_size: 25
-  num_islands: 4
+  population_size: 70   # Increased from 30 -> 70
+  archive_size: 30      # Increased archive
+  num_islands: 5        # Increased diversity (5 islands)
   elite_selection_ratio: 0.3
-  exploitation_ratio: 0.7
+  exploitation_ratio: 0.6 # Lowered to encourage exploration
 
-# ----------------------------------------------------------------
 # EVALUATOR CONFIGURATION
-# ----------------------------------------------------------------
 evaluator:
-  timeout: 60
+  timeout: 90           # Increased timeout for complex math
   cascade_evaluation: true
-  cascade_thresholds: [0.5, 0.75]
+  cascade_thresholds: [0.5, 0.8] # Stricter thresholds
   parallel_evaluations: 4
   use_llm_feedback: false
 
-# ----------------------------------------------------------------
 # EVOLUTION SETTINGS
-# ----------------------------------------------------------------
-diff_based_evolution: false
-allow_full_rewrites: true
-max_code_length: 100000
+evolution_settings:
+  diff_based_evolution: false
+  allow_full_rewrites: true
+  max_code_length: 100000
