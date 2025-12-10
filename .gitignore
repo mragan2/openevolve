@@ -53,3 +53,9 @@ htmlcov/
 # For SR
 secrets.yaml
 problems
+
+# Environment files with secrets
+.env
+.env.*
+*.env
+credentials.yaml

@@ -143,7 +143,7 @@ llm:
   primary_model_weight: 1.0
   
   api_base: "http://localhost:11434/v1"
-  api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'
+  api_key: "${OPENAI_API_KEY}"
   temperature: 0.85 # Higher temp to encourage breaking the standard model
   top_p: 0.95
   max_tokens: 8192
