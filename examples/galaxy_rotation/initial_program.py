@@ -1,12 +1,12 @@
 """
 Galaxy rotation with unit-consistent Yukawa correction and Vainshtein screening.
 
-This is a v2 seed based on the previous best program, modified to:
-  - Preserve the same radial behaviour (screening and Yukawa structure).
-  - Make units explicit and consistent:
-        * Yukawa term is built in SI units [m^2/s^2]
-        * Then converted to [km^2/s^2] before combining with v_baryonic^2
-  - Expose a small set of parameters for OpenEvolve to tune.
+v3 seed: cleaned version of the best evolved model.
+
+- Preserves radial behaviour of the 0.797-score solution.
+- Makes units explicit and consistent.
+- Encodes inner and outer suppression as single, clear factors
+  instead of duplicated code, while keeping the effective power.
 """
 
 import math
@@ -27,17 +27,24 @@ SCREENING_POWER = 2.0      # Power in screening factor (controls steepness)
 # ----------------------------------------------------------------------
 # Coupling strength (TUNABLE)
 # ----------------------------------------------------------------------
-# Rescaled so that after m^2->km^2 conversion, the numerical contribution
-# approximately matches the earlier best program with YUKAWA_ALPHA ≈ 0.6.
-ALPHA_YUKAWA_DIMLESS = 6.0e5
+# Tuned by OpenEvolve; this value matches the best evolved model.
+ALPHA_YUKAWA_DIMLESS = 6.3e5  # Coupling strength
 
 # ----------------------------------------------------------------------
 # Inner-region suppression (TUNABLE)
 # ----------------------------------------------------------------------
-# Yukawa term is strongly suppressed inside INNER_CUTOFF_KPC, so that
-# baryons dominate the inner rotation curve.
-INNER_CUTOFF_KPC = 5.0         # Radius inside which Yukawa is suppressed
-INNER_SUPPRESSION_POWER = 2.0  # Exponent in (r / INNER_CUTOFF_KPC)^power
+# In the best model, inner suppression was effectively applied twice with
+# INNER_SUPPRESSION_POWER = 2.0 -> net exponent 4.0.
+# Here we encode that directly as INNER_SUPPRESSION_POWER = 4.0 and apply
+# the factor only once.
+INNER_CUTOFF_KPC = 5.0          # Radius inside which Yukawa is suppressed
+INNER_SUPPRESSION_POWER = 4.0   # Effective exponent in (r / INNER_CUTOFF_KPC)^power
+
+# ----------------------------------------------------------------------
+# Outer-region suppression (TUNABLE)
+# ----------------------------------------------------------------------
+OUTER_CUTOFF_KPC = 100.0        # Radius where outer damping starts to matter
+OUTER_WIDTH_KPC = 30.0          # Width scale for Gaussian-like damping
 
 # Threshold for "r << lambda" regime
 RATIO_THRESHOLD = 1.0e-3
@@ -71,7 +78,7 @@ def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     v_bary = float(v_baryonic)
 
     # --------------------------------------------------------------
-    # 1. Vainshtein-like screening (same structure as best program)
+    # 1. Vainshtein-like screening
     #    screening_factor = 1 + (r / R_VAIN)^SCREENING_POWER
     # --------------------------------------------------------------
     r_vain_m = R_VAIN_KPC * KPC_TO_M
@@ -103,17 +110,27 @@ def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     # 1 km^2/s^2 = 1e6 m^2/s^2  →  divide by 1e6
     v_yukawa_sq_km2 = v_yukawa_sq_SI / 1.0e6
 
-    # Inner suppression: Yukawa should not dominate in inner galaxy
+    # --------------------------------------------------------------
+    # 4. Inner suppression: Yukawa should not dominate in inner galaxy
+    # --------------------------------------------------------------
     if r_kpc < INNER_CUTOFF_KPC:
         # Factor goes from 0 at r=0 to 1 at r=INNER_CUTOFF_KPC
-        factor = (r_kpc / INNER_CUTOFF_KPC) ** INNER_SUPPRESSION_POWER
-        v_yukawa_sq_km2 *= factor
+        factor_inner = (r_kpc / INNER_CUTOFF_KPC) ** INNER_SUPPRESSION_POWER
+        v_yukawa_sq_km2 *= factor_inner
+
+    # --------------------------------------------------------------
+    # 5. Outer suppression: avoid overcorrection at very large radii
+    # --------------------------------------------------------------
+    if r_kpc > OUTER_CUTOFF_KPC:
+        x = (r_kpc - OUTER_CUTOFF_KPC) / OUTER_WIDTH_KPC
+        outer_factor = math.exp(-x * x)
+        v_yukawa_sq_km2 *= outer_factor
 
     if v_yukawa_sq_km2 < 0.0:
         v_yukawa_sq_km2 = 0.0
 
     # --------------------------------------------------------------
-    # 4. Combine baryonic and Yukawa contributions
+    # 6. Combine baryonic and Yukawa contributions
     # --------------------------------------------------------------
     v_total_sq = v_bary ** 2 + v_yukawa_sq_km2
 
