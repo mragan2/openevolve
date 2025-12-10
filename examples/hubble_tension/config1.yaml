@@ -55,6 +55,6 @@ evaluator:
   use_llm_feedback: false
 
 evolution_settings:
-  diff_based_evolution: true
+  diff_based_evolution: false
   allow_full_rewrites: false
   max_code_length: 100000

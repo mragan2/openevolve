@@ -57,63 +57,72 @@ hbar = hbar_global
 M_G_REF = M_G_REF_global
 
 def H_mg_phenomenological(
-    a: float,
-    m_g: float,
-    transition_midpoint: float = 0.559,
-    transition_width: float = 0.252,
-    H0_early_km_s_Mpc: float = 67.0,
-    H0_late_km_s_Mpc: float = 73.0,
-    epsilon: float = -0.081,
-) -> float:
+    a,
+    m_g,
+    *,
+    transition_midpoint=None,
+    transition_width=None,
+    H0_early_km_s_Mpc=None,
+    H0_late_km_s_Mpc=None,
+    epsilon=None,
+):
     """
-    Phenomenological massive graviton contribution to H^2(a) in SI [s^-2].
+    Phenomenological massive graviton contribution to H^2(a) in SI units [s^-2].
 
-    This version exposes the dynamical parameters so that they can be
-    varied by the sampler.  For m_g = M_G_REF and a = 1 the contribution
-    reduces to Ω_MG_MAG * H0_SQ_MAG.
+    This version is compatible with the MCMC parameter vector, which may pass
+    transition_midpoint, transition_width, H0_early_km_s_Mpc, H0_late_km_s_Mpc
+    and epsilon as sampled parameters.
 
-    Parameters
-    ----------
-    a : float
-        Scale factor (must be > 0).
-    m_g : float
-        Graviton mass in kg.
-    transition_midpoint, transition_width : float
-        Control the midpoint and width of the sigmoid transition between
-        early and late H0 values.
-    H0_early_km_s_Mpc, H0_late_km_s_Mpc : float
-        Hubble constant values (km/s/Mpc) deep in the radiation/matter era
-        and at late times.
-    epsilon : float
-        Power‑law tilt exponent a^epsilon applied to the dark‑energy term.
-
-    Returns
-    -------
-    float
-        Contribution to H^2(a) in SI units [s^-2].
+    If any of these are None, final evolved defaults are used:
+      transition_midpoint = 0.597
+      transition_width    = 0.252
+      H0_early_km_s_Mpc   = 67.0
+      H0_late_km_s_Mpc    = 73.0
+      epsilon             = -0.047
     """
+    H0_SQ = H0_SQ_MAG
+    OMEGA_MG = OMEGA_MG_MAG
+
+    # ensure a > 0
+    a = float(a)
     if a <= 0.0:
         a = 1e-8
 
-    # Mass scaling: H2 ∝ (m_g / M_G_REF)^2
+    # ----------------------------
+    # Use passed values or defaults
+    # ----------------------------
+    if transition_midpoint is None:
+        transition_midpoint = 0.597
+    if transition_width is None:
+        transition_width = 0.252
+    if H0_early_km_s_Mpc is None:
+        H0_early_km_s_Mpc = 67.0
+    if H0_late_km_s_Mpc is None:
+        H0_late_km_s_Mpc = 73.0
+    if epsilon is None:
+        epsilon = -0.047
+
+    # mass scaling
     mass_factor = (m_g / M_G_REF) ** 2
 
-    # Early and late H0 values converted to s^-2
+    # early/late H0 values in s^-2
     H0_early_sq = (H0_early_km_s_Mpc * 1e3 / 3.086e22) ** 2
-    H0_late_sq = (H0_late_km_s_Mpc * 1e3 / 3.086e22) ** 2
+    H0_late_sq  = (H0_late_km_s_Mpc * 1e3 / 3.086e22) ** 2
 
-    # Smooth transition using a logistic function
+    # smooth transition
     x = (a - transition_midpoint) / transition_width
-    transition_factor = 0.5 * (1.0 + math.tanh(0.5 * x))
+    transition_factor = 1.0 / (1.0 + math.exp(-x))
 
     H0_ratio = H0_late_sq / H0_early_sq
     dynamical_factor = 1.0 + (H0_ratio - 1.0) * transition_factor
 
-    # Power‑law tilt
+    # small power-law correction
     power_factor = a ** epsilon
+
     a_factor = dynamical_factor * power_factor
 
-    return H0_SQ_MAG * OMEGA_MG_MAG * mass_factor * a_factor
+    return H0_SQ * OMEGA_MG * mass_factor * a_factor  # [s^-2]
+
 
 # -----------------------------------------------------------------------------
 # 1. Paths and data loading
