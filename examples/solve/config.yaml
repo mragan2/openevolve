@@ -1,5 +1,5 @@
 # OpenEvolve: The Dark Matter Killer
-max_iterations: 500
+max_iterations: 1000
 checkpoint_interval: 20
 log_level: "INFO"
 
@@ -12,7 +12,7 @@ llm:
   
   api_base: "http://localhost:11434/v1"
   api_key: "${OPENAI_API_KEY}"
-  temperature: 0.7
+  temperature: 0.6
   top_p: 0.95
   max_tokens: 8192
   timeout: 600
@@ -52,7 +52,7 @@ database:
 
 evaluator:
   timeout: 60
-  cascade_evaluation: true
+  cascade_evaluation: false
   cascade_thresholds: [0.5, 0.8]
   parallel_evaluations: 4
   use_llm_feedback: false
@@ -60,4 +60,4 @@ evaluator:
 evolution_settings:
   diff_based_evolution: true
   allow_full_rewrites: false
-  max_code_length: 10000
+  max_code_length: 100000
