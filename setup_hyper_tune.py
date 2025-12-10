@@ -12,7 +12,7 @@ CACHE_DIR = os.path.join(HUBBLE_DIR, "__pycache__")
 
 # --- CREDENTIALS ---
 API_BASE = "http://localhost:11434/v1"
-API_KEY = "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
+API_KEY = os.environ.get("OPENAI_API_KEY", "")
 MODEL_NAME = "qwen3-coder:480b-cloud"
 
 # --- PHASE 3 CONFIGURATION: THE SNIPER ---

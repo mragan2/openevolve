@@ -5,9 +5,13 @@ cd /d "C:\Users\Michal\Documents\GitHub\openevolve"
 REM Activate your virtual environment
 call .venv\Scripts\activate
 
-REM Set LLM endpoint and key for this shell session
+REM Set LLM endpoint for this shell session
 set OPENAI_API_BASE=http://localhost:11434/v1
-set OPENAI_API_KEY=aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0
+
+REM Load API key from environment or .env file
+if not defined OPENAI_API_KEY (
+    echo Warning: OPENAI_API_KEY is not set. Please set it before running experiments.
+)
 
 echo.
 echo OpenEvolve environment is ready.

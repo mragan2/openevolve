@@ -11,7 +11,7 @@ llm:
   secondary_model_weight: 0.15
   
   api_base: "http://localhost:11434/v1"
-  api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
+  api_key: "${OPENAI_API_KEY}"
   temperature: 0.7
   top_p: 0.95
   max_tokens: 8192
