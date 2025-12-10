@@ -1,15 +1,14 @@
-
-# OpenEvolve Configuration (Stage 2: Optimization)
-# Based on your "Part 2" parameters but tailored for Graviton Physics
-
+# OpenEvolve: The Dark Matter Killer
 max_iterations: 500
 checkpoint_interval: 20
 log_level: "INFO"
 
-# LLM CONFIGURATION (Keeping Local Qwen as requested)
 llm:
+  # Using your Cloud Setup for max intelligence
   primary_model: "qwen3-coder:480b-cloud"
   primary_model_weight: 0.85
+  secondary_model: "deepseek-r1:1.5b"
+  secondary_model_weight: 0.15
   
   api_base: "http://localhost:11434/v1"
   api_key: "${OPENAI_API_KEY}"
@@ -36,7 +35,7 @@ prompt:
 
   num_top_programs: 4
   use_template_stochasticity: true
-
+  
 database:
   # Moderate-sized population, enough diversity without huge cost
   population_size: 70

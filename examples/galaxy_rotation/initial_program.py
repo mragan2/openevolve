@@ -1,39 +1,42 @@
 """
-Simplified MOG/Yukawa galaxy rotation model with Vainshtein screening.
+Galaxy rotation with unit-consistent Yukawa correction and Vainshtein screening.
 
-Core physics:
-- Yukawa correction with massive graviton screening
-- Vainshtein mechanism to suppress Yukawa in dense regions
-- Physical suppression at small and large radii
+This is a v2 seed based on the previous best program, modified to:
+  - Preserve the same radial behaviour (screening and Yukawa structure).
+  - Make units explicit and consistent:
+        * Yukawa term is built in SI units [m^2/s^2]
+        * Then converted to [km^2/s^2] before combining with v_baryonic^2
+  - Expose a small set of parameters for OpenEvolve to tune.
 """
 
 import math
 
-# Physical constants (fixed)
-G = 6.67430e-11      # Gravitational constant [m^3 kg^-1 s^-2]
-KPC_TO_M = 3.086e19  # 1 kpc in meters
-
-
-# EVOLVE-BLOCK-START
 # ----------------------------------------------------------------------
-# MOG / massive-gravity parameters – evolvable region
+# Physical constants
 # ----------------------------------------------------------------------
-LAMBDA_G = 1.4e26          # Graviton Compton wavelength (~4.6 Gly) [m]
-R_VAIN_KPC = 25.0          # Vainshtein screening radius [kpc]
-SCREENING_POWER = 2.0      # Power in screening factor (controls steepness)
+G = 6.67430e-11        # Gravitational constant [m^3 kg^-1 s^-2]
+KPC_TO_M = 3.086e19    # 1 kpc in meters
 
-ALPHA_YUKAWA_DIMLESS = 6.3e5   # Yukawa coupling strength (dimensionless)
+# ----------------------------------------------------------------------
+# Massive graviton / screening scales (tunable)
+# ----------------------------------------------------------------------
+LAMBDA_G = 1.4e26        # Graviton Compton wavelength (~4.6 Gly) [m]
+R_VAIN_KPC = 25.0        # Vainshtein radius in kpc (screening scale)
+SCREENING_POWER = 2.0    # Power in the screening factor (controls steepness)
 
-INNER_CUTOFF_KPC = 5.0         # Inner suppression radius [kpc]
-INNER_SUPPRESSION_POWER = 2.0  # Power for inner suppression
+# Coupling strength:
+# This is rescaled so that, after the explicit m^2->km^2 conversion,
+# the numerical contribution matches the previous best program with
+# YUKAWA_ALPHA ≈ 0.6.
+ALPHA_YUKAWA_DIMLESS = 6.0e5
 
-OUTER_CUTOFF_KPC = 100.0       # Outer damping start radius [kpc]
-OUTER_WIDTH_KPC = 30.0         # Width scale for outer damping [kpc]
+# Threshold for the "r << lambda" regime
+RATIO_THRESHOLD = 1.0e-3
 
 
 def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     """
-    Calculate total rotation velocity (km/s) including Yukawa + Vainshtein
+    Compute total rotation velocity (km/s) including a Yukawa + Vainshtein
     massive-gravity correction.
 
     Parameters
@@ -54,53 +57,50 @@ def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     if r_kpc <= 0.0 or M_enclosed <= 0.0:
         return float(v_baryonic)
 
-    # Radius in meters and baryonic velocity
+    # Radius in meters
     r_m = r_kpc * KPC_TO_M
     v_bary = float(v_baryonic)
 
     # --------------------------------------------------------------
-    # 1. Vainshtein screening: suppress Yukawa in dense regions
-    #    screening = 1 + (r / R_VAIN)^SCREENING_POWER
+    # 1. Vainshtein-like screening (same structure as best program)
+    #    screening_factor = 1 + (r / R_VAIN)^SCREENING_POWER
     # --------------------------------------------------------------
     r_vain_m = R_VAIN_KPC * KPC_TO_M
-    screening = 1.0 + (r_m / r_vain_m) ** SCREENING_POWER
+    screening_factor = 1.0 + (r_m / r_vain_m) ** SCREENING_POWER
 
     # --------------------------------------------------------------
-    # 2. Yukawa core with exponential suppression
-    #    ~ G M_enclosed / LAMBDA_G with exp(-r / LAMBDA_G)
+    # 2. Yukawa "core" term in SI units [m^2/s^2]
+    #    Core structure matches the previous best:
+    #      ~ G * M_enclosed / LAMBDA_G with a possible exponential
+    #      suppression for r ≳ LAMBDA_G.
     # --------------------------------------------------------------
     ratio = r_m / LAMBDA_G
-    yukawa_core = G * M_enclosed / LAMBDA_G
 
-    # Unified exponential factor
-    exponential_factor = math.exp(-ratio) if ratio > 1e-3 else 1.0
-    yukawa_core *= exponential_factor
+    if ratio < RATIO_THRESHOLD:
+        # r << lambda: exponential ~ 1, scale-independent boost
+        yukawa_core_SI = G * M_enclosed / LAMBDA_G
+    else:
+        # r ≳ lambda: include exponential Yukawa suppression
+        exponential_factor = math.exp(-ratio)
+        yukawa_core_SI = G * M_enclosed / LAMBDA_G * exponential_factor
 
-    # Yukawa contribution in (km/s)^2
-    #   1 km^2/s^2 = 1e6 m^2/s^2
-    v_yukawa_sq = ALPHA_YUKAWA_DIMLESS * yukawa_core * screening / 1.0e6
-
-    # --------------------------------------------------------------
-    # 3. Inner suppression: Yukawa subdominant at small radii
-    # --------------------------------------------------------------
-    if r_kpc < 2.0 * INNER_CUTOFF_KPC:
-        x = r_kpc / INNER_CUTOFF_KPC
-        inner_suppression = 1.0 - math.exp(-x ** INNER_SUPPRESSION_POWER)
-        v_yukawa_sq *= inner_suppression
+    # Full Yukawa contribution in SI:
+    #   v_yukawa_sq_SI ~ α * (G M / LAMBDA_G) * screening_factor
+    v_yukawa_sq_SI = ALPHA_YUKAWA_DIMLESS * yukawa_core_SI * screening_factor
 
     # --------------------------------------------------------------
-    # 4. Outer suppression: prevent overcorrection at large radii
+    # 3. Convert Yukawa term to (km/s)^2 and combine with baryonic v^2
     # --------------------------------------------------------------
-    if r_kpc > OUTER_CUTOFF_KPC:
-        x_outer = (r_kpc - OUTER_CUTOFF_KPC) / OUTER_WIDTH_KPC
-        v_yukawa_sq *= math.exp(-x_outer * x_outer)
+    # 1 km^2/s^2 = 1e6 m^2/s^2  →  divide by 1e6
+    v_yukawa_sq_km2 = v_yukawa_sq_SI / 1.0e6
 
-    # --------------------------------------------------------------
-    # 5. Combine baryonic and Yukawa contributions
-    # --------------------------------------------------------------
-    v_total_sq = v_bary ** 2 + max(0.0, v_yukawa_sq)
+    if v_yukawa_sq_km2 < 0.0:
+        v_yukawa_sq_km2 = 0.0
+
+    v_total_sq = v_bary ** 2 + v_yukawa_sq_km2
+
     if v_total_sq <= 0.0:
+        # Fallback: numerical guard
         return v_bary
 
     return math.sqrt(v_total_sq)
-# EVOLVE-BLOCK-END

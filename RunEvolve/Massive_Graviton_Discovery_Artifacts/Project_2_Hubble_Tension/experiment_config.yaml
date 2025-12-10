@@ -1,0 +1,53 @@
+
+# OpenEvolve Configuration (Phase 3: Hyper-Tuning)
+max_iterations: 50  # Short run, just for numbers
+checkpoint_interval: 5
+log_level: "INFO"
+
+llm:
+  primary_model: "qwen3-coder:480b-cloud"
+  primary_model_weight: 1.0
+  api_base: "http://localhost:11434/v1"
+  api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
+  
+  # FREEZE MODE
+  temperature: 0.2  # Extremely low to prevent logic changes
+  top_p: 0.85
+  max_tokens: 8192
+  timeout: 600
+
+prompt:
+  system_message: |
+    Jesteś numerycznym solverem. Twoim JEDYNYM celem jest precyzja.
+    
+    OBECNY WYNIK: 0.9861.
+    BRAKUJE: Idealnego dopasowania do H0_LATE = 73.000.
+    
+    ZADANIE:
+    Zmieniaj TYLKO cyfry w parametrach:
+    - `transition_midpoint` (np. 0.555 -> 0.55X)
+    - `epsilon` (np. -0.085 -> -0.08X)
+    
+    Nie zmieniaj ani jednej linii kodu logicznego. Tylko liczby.
+
+  num_top_programs: 2
+  use_template_stochasticity: false
+
+database:
+  population_size: 40      # Focused population
+  archive_size: 10
+  num_islands: 2           # Less diversity needed
+  elite_selection_ratio: 0.4
+  exploitation_ratio: 0.9  # 90% exploitation of the best code
+
+evaluator:
+  timeout: 60
+  cascade_evaluation: true
+  cascade_thresholds: [0.9, 0.95] # Only accept excellent programs
+  parallel_evaluations: 4
+  use_llm_feedback: false
+
+evolution_settings:
+  diff_based_evolution: true   # MUST be true for number tweaking
+  allow_full_rewrites: false   # ABSOLUTELY FORBIDDEN
+  max_code_length: 10000

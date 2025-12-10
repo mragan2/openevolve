@@ -6,7 +6,7 @@ REM Activate virtual environment
 call .venv\Scripts\activate
 
 REM Run evolution
-python openevolve-run.py examples/solve/initial_program.py examples/solve/evaluator.py --config examples/solve/config.yaml
+python openevolve-run.py examples/solve/6_d.py examples/solve/evaluator.py --config examples/solve/config.yaml
 
 echo.
 echo Finished. Press any key to close.
