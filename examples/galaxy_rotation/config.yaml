@@ -51,7 +51,7 @@ prompt:
 
   num_top_programs: 4
   use_template_stochasticity: true
-
+  
 database:
   # Moderate-sized population, enough diversity without huge cost
   population_size: 70
