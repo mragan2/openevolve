@@ -151,7 +151,7 @@ prompt:
     Użyj masy grawitonu (m_g ~ 10^-69) lub skali długości (lambda ~ 4.6 Gly = 1.4e26 m).
     UWAGA: Skala galaktyczna (kpc) jest DUŻO mniejsza niż lambda. Musisz znaleźć efekt "screening" lub "Vainshtein".
 
-  num_top_programs: 3
+  num_top_programs: 4
   use_template_stochasticity: true
 
 database:

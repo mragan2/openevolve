@@ -139,8 +139,9 @@ checkpoint_interval: 10
 log_level: "INFO"
 
 llm:
-  primary_model: "qwen2.5-coder:7b"
+  primary_model: "qwen3-coder:480b-cloud"
   primary_model_weight: 1.0
+  
   api_base: "http://localhost:11434/v1"
   api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'
   temperature: 0.85 # Higher temp to encourage breaking the standard model

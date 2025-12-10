@@ -1,0 +1,11 @@
+# Pantheon-like SN data template
+# Save your real file as: pantheon_plus_sn.txt
+# Columns:
+#   z           redshift
+#   mu          distance modulus
+#   sigma_mu    uncertainty on mu
+#
+# Example (toy numbers):
+# 0.01   33.2   0.15
+# 0.05   36.3   0.15
+# ...

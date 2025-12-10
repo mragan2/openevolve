@@ -1,28 +1,20 @@
 """
-Simplified MOG/Yukawa galaxy rotation model with Vainshtein screening.
-
-Core physics:
-- Yukawa correction with massive graviton screening
-- Vainshtein mechanism to suppress Yukawa in dense regions
-- Physical suppression at small and large radii
+MOG/Yukawa galaxy rotation model with Vainshtein screening.
 """
 
 import math
 
-# Physical constants (fixed)
+# Physical constants
 G = 6.67430e-11      # Gravitational constant [m^3 kg^-1 s^-2]
 KPC_TO_M = 3.086e19  # 1 kpc in meters
 
 
 # EVOLVE-BLOCK-START
-# ----------------------------------------------------------------------
-# MOG / massive-gravity parameters – evolvable region
-# ----------------------------------------------------------------------
 LAMBDA_G = 1.4e26          # Graviton Compton wavelength (~4.6 Gly) [m]
 R_VAIN_KPC = 25.0          # Vainshtein screening radius [kpc]
-SCREENING_POWER = 2.0      # Power in screening factor (controls steepness)
+SCREENING_POWER = 2.0      # Power in screening factor
 
-ALPHA_YUKAWA_DIMLESS = 6.3e5   # Yukawa coupling strength (dimensionless)
+ALPHA_YUKAWA_DIMLESS = 6.4e5   # Yukawa coupling strength
 
 INNER_CUTOFF_KPC = 5.0         # Inner suppression radius [kpc]
 INNER_SUPPRESSION_POWER = 2.0  # Power for inner suppression
@@ -33,22 +25,7 @@ OUTER_WIDTH_KPC = 30.0         # Width scale for outer damping [kpc]
 
 def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     """
-    Calculate total rotation velocity (km/s) including Yukawa + Vainshtein
-    massive-gravity correction.
-
-    Parameters
-    ----------
-    r_kpc : float
-        Radius in kiloparsecs.
-    v_baryonic : float
-        Baryonic-only circular velocity in km/s.
-    M_enclosed : float
-        Enclosed baryonic mass within r (kg).
-
-    Returns
-    -------
-    float
-        Total circular velocity in km/s.
+    Calculate total rotation velocity including Yukawa + Vainshtein correction.
     """
     # Basic safety checks
     if r_kpc <= 0.0 or M_enclosed <= 0.0:
@@ -72,8 +49,14 @@ def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     ratio = r_m / LAMBDA_G
     yukawa_core = G * M_enclosed / LAMBDA_G
 
-    # Unified exponential factor
-    exponential_factor = math.exp(-ratio) if ratio > 1e-3 else 1.0
+    # Improved numerical stability for exponential
+    if ratio > 20.0:
+        exponential_factor = 0.0
+    elif ratio > 1e-3:
+        exponential_factor = math.exp(-ratio)
+    else:
+        # Taylor expansion for small ratios: exp(-x) ≈ 1 - x + x²/2
+        exponential_factor = 1.0 - ratio + 0.5 * ratio * ratio
     yukawa_core *= exponential_factor
 
     # Yukawa contribution in (km/s)^2
@@ -85,7 +68,8 @@ def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     # --------------------------------------------------------------
     if r_kpc < 2.0 * INNER_CUTOFF_KPC:
         x = r_kpc / INNER_CUTOFF_KPC
-        inner_suppression = 1.0 - math.exp(-x ** INNER_SUPPRESSION_POWER)
+        # Smoother transition with power-law enhancement
+        inner_suppression = x ** INNER_SUPPRESSION_POWER / (1.0 + x ** INNER_SUPPRESSION_POWER)
         v_yukawa_sq *= inner_suppression
 
     # --------------------------------------------------------------
@@ -93,7 +77,12 @@ def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     # --------------------------------------------------------------
     if r_kpc > OUTER_CUTOFF_KPC:
         x_outer = (r_kpc - OUTER_CUTOFF_KPC) / OUTER_WIDTH_KPC
-        v_yukawa_sq *= math.exp(-x_outer * x_outer)
+        outer_suppression = math.exp(-x_outer * x_outer)
+        # Additional suppression for very large radii
+        if r_kpc > 1.5 * OUTER_CUTOFF_KPC:
+            extra_suppression = math.exp(-(r_kpc - 1.5 * OUTER_CUTOFF_KPC) / OUTER_WIDTH_KPC)
+            outer_suppression *= extra_suppression
+        v_yukawa_sq *= outer_suppression
 
     # --------------------------------------------------------------
     # 5. Combine baryonic and Yukawa contributions
