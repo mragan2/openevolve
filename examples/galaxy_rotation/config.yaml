@@ -1,7 +1,6 @@
-
 # OpenEvolve: The Dark Matter Killer
-max_iterations: 100
-checkpoint_interval: 10
+max_iterations: 300
+checkpoint_interval: 20
 log_level: "INFO"
 
 llm:
@@ -33,6 +32,20 @@ prompt:
     Gdzie V_yukawa zależy od masy M_enclosed i stałej sprzężenia alpha.
     Użyj masy grawitonu (m_g ~ 10^-69) lub skali długości (lambda ~ 4.6 Gly = 1.4e26 m).
     UWAGA: Skala galaktyczna (kpc) jest DUŻO mniejsza niż lambda. Musisz znaleźć efekt "screening" lub "Vainshtein".
+
+    BARDZO WAŻNE:
+    1. W pierwszej kolejności próbuj poprawek WYŁĄCZNIE przez zmianę wartości
+       stałych na górze pliku:
+         - ALPHA_YUKAWA_DIMLESS
+         - R_VAIN_KPC
+         - SCREENING_POWER
+         - INNER_CUTOFF_KPC
+         - INNER_SUPPRESSION_POWER
+    2. Dopiero gdy nie uzyskujesz poprawy, możesz delikatnie zmieniać
+       strukturę tych wzorów, ale zachowaj:
+         - Vainshtein-like screening,
+         - Yukawową tłumienie przez LAMBDA_G,
+         - dominację baryonów w małych promieniach.
 
   num_top_programs: 3
   use_template_stochasticity: true

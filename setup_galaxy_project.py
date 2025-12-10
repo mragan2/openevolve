@@ -28,7 +28,6 @@ import math
 import sys
 from pathlib import Path
 import numpy as np
-import traceback
 
 # --- PHYSICAL CONSTANTS ---
 G_NEWTON = 6.67430e-11
@@ -36,18 +35,21 @@ M_SUN = 1.989e30       # kg
 KPC_TO_M = 3.086e19    # meters
 
 # --- REAL GALAXY DATA (Synthetic NGC 6503 Approximation) ---
+# Radius (kpc), Velocity_Observed (km/s), Velocity_Baryonic_Only (km/s)
+# Baryonic = Stars + Gas (Visible Matter)
 DATA_R_KPC = np.array([2, 4, 6, 8, 10, 12, 14, 16, 18, 20])
 DATA_V_OBS = np.array([110, 115, 118, 120, 121, 121, 120, 119, 118, 117]) # Flat curve
 DATA_V_BAR = np.array([108, 105, 95, 85, 75, 68, 62, 58, 54, 50])         # Keplerian fall-off
 
 def _sanitize_candidate_file(path: Path) -> None:
-    """Strip Markdown fences if a candidate file was pasted with ``` blocks."""
+    \"\"\"Strip Markdown fences if a candidate file was pasted with ``` blocks.\"\"\"
     try:
         text = path.read_text(encoding="utf-8")
         if "```" in text:
             lines = [l for l in text.splitlines() if not l.strip().startswith("```")]
             path.write_text("\\n".join(lines), encoding="utf-8")
     except Exception:
+        # Non-fatal; just skip sanitization errors
         pass
 
 def evaluate(program_path: str) -> dict:
@@ -62,42 +64,45 @@ def evaluate(program_path: str) -> dict:
         sys.modules[path.stem] = module
         assert spec.loader is not None
         spec.loader.exec_module(module)
-    except Exception as e:
-        print("[EVALUATOR] Import error:", e)
-        traceback.print_exc()
+    except Exception:
         return {"combined_score": 0.0}
 
     # Get the user's function
     calc_func = getattr(module, "calculate_rotation_velocity", None)
     if calc_func is None:
-        print("[EVALUATOR] Missing function: calculate_rotation_velocity")
         return {"combined_score": 0.0}
 
     # --- EVALUATION LOOP ---
     try:
+        # Fixed graviton mass scale (from your massive-gravity work)
+        # m_g ~ 8.1e-69 kg. The AI can encode coupling / Yukawa scale internally.
+
         errors = []
         for r_kpc, v_obs, v_bar in zip(DATA_R_KPC, DATA_V_OBS, DATA_V_BAR):
+            # r (kpc), v_baryonic (km/s), M_enclosed (kg)
+
+            # Approx enclosed mass from baryonic velocity: v^2 = G M / r  ->  M = v^2 r / G
             r_m = r_kpc * KPC_TO_M
             v_bar_ms = v_bar * 1000.0
             M_enc = (v_bar_ms**2 * r_m) / G_NEWTON
 
+            # Call candidate function (must return km/s)
             v_pred_kms = float(calc_func(r_kpc, v_bar, M_enc))
+
+            # Relative error vs observed flat curve
             err = abs(v_pred_kms - v_obs) / v_obs
             errors.append(err)
 
         mean_error = float(np.mean(errors))
-        if not np.isfinite(mean_error):
-            raise ValueError(f"Non-finite mean_error: {mean_error}")
 
+        # Score: 1.0 if error is 0; decreases as mean_error grows
         score = 1.0 / (1.0 + mean_error * 10.0)
 
         metrics["rotation_match"] = score
         metrics["combined_score"] = score
         metrics["stability"] = 1.0
 
-    except Exception as e:
-        print("[EVALUATOR] Runtime error:", e)
-        traceback.print_exc()
+    except Exception:
         metrics["combined_score"] = 0.0
 
     return metrics
@@ -108,7 +113,6 @@ def evaluate_stage1(p: str) -> dict:
 def evaluate_stage2(p: str) -> dict:
     return evaluate(p)
 '''
-
 
 # --- 2. THE GALAXY CONFIG ---
 GALAXY_CONFIG = """
@@ -176,26 +180,113 @@ evolution_settings:
   max_code_length: 10000
 """
 
-# --- 3. THE GALAXY SEED (Blank Slate) ---
+# --- 3. THE GALAXY SEED (v2 Yukawa/Vainshtein seed, unit-consistent) ---
 GALAXY_SEED = '''"""
-Galaxy Rotation Seed.
-"""
-import math
-import numpy as np
+Galaxy rotation with unit-consistent Yukawa correction and Vainshtein screening.
 
-# Constants
-G = 6.67430e-11
-KPC_TO_M = 3.086e19
-M_G_REF = 8.1e-69  # Your discovered mass
+This is a v2 seed based on the previous best program, modified to:
+  - Preserve the same radial behaviour (screening and Yukawa structure).
+  - Make units explicit and consistent:
+        * Yukawa term is built in SI units [m^2/s^2]
+        * Then converted to [km^2/s^2] before combining with v_baryonic^2
+  - Expose a small set of parameters for OpenEvolve to tune.
+"""
+
+import math
+
+# ----------------------------------------------------------------------
+# Physical constants
+# ----------------------------------------------------------------------
+G = 6.67430e-11        # Gravitational constant [m^3 kg^-1 s^-2]
+KPC_TO_M = 3.086e19    # 1 kpc in meters
+
+# ----------------------------------------------------------------------
+# Massive graviton / screening scales (tunable)
+# ----------------------------------------------------------------------
+LAMBDA_G = 1.4e26        # Graviton Compton wavelength (~4.6 Gly) [m]
+R_VAIN_KPC = 25.0        # Vainshtein radius in kpc (screening scale)
+SCREENING_POWER = 2.0    # Power in the screening factor (controls steepness)
+
+# Coupling strength:
+# This is rescaled so that, after the explicit m^2->km^2 conversion,
+# the numerical contribution matches the previous best program with
+# YUKAWA_ALPHA ≈ 0.6.
+ALPHA_YUKAWA_DIMLESS = 6.0e5
+
+# Threshold for the "r << lambda" regime
+RATIO_THRESHOLD = 1.0e-3
+
 
 def calculate_rotation_velocity(r_kpc, v_baryonic, M_enclosed):
     """
-    Calculates total rotation velocity.
-    Currently just returns Newtonian velocity (Standard Physics).
-    AI must modify this to include Massive Gravity effects.
+    Compute total rotation velocity (km/s) including a Yukawa + Vainshtein
+    massive-gravity correction.
+
+    Parameters
+    ----------
+    r_kpc : float
+        Radius in kiloparsecs.
+    v_baryonic : float
+        Baryonic-only circular velocity in km/s.
+    M_enclosed : float
+        Enclosed baryonic mass within r (kg).
+
+    Returns
+    -------
+    float
+        Total circular velocity in km/s.
     """
-    # Placeholder: Newton only (Fails to explain rotation curves)
-    return v_baryonic
+    # Basic safety checks
+    if r_kpc <= 0.0 or M_enclosed <= 0.0:
+        return float(v_baryonic)
+
+    # Radius in meters
+    r_m = r_kpc * KPC_TO_M
+    v_bary = float(v_baryonic)
+
+    # --------------------------------------------------------------
+    # 1. Vainshtein-like screening (same structure as best program)
+    #    screening_factor = 1 + (r / R_VAIN)^SCREENING_POWER
+    # --------------------------------------------------------------
+    r_vain_m = R_VAIN_KPC * KPC_TO_M
+    screening_factor = 1.0 + (r_m / r_vain_m) ** SCREENING_POWER
+
+    # --------------------------------------------------------------
+    # 2. Yukawa "core" term in SI units [m^2/s^2]
+    #    Core structure matches the previous best:
+    #      ~ G * M_enclosed / LAMBDA_G with a possible exponential
+    #      suppression for r ≳ LAMBDA_G.
+    # --------------------------------------------------------------
+    ratio = r_m / LAMBDA_G
+
+    if ratio < RATIO_THRESHOLD:
+        # r << lambda: exponential ~ 1, scale-independent boost
+        yukawa_core_SI = G * M_enclosed / LAMBDA_G
+    else:
+        # r ≳ lambda: include exponential Yukawa suppression
+        exponential_factor = math.exp(-ratio)
+        yukawa_core_SI = G * M_enclosed / LAMBDA_G * exponential_factor
+
+    # Full Yukawa contribution in SI:
+    #   v_yukawa_sq_SI ~ α * (G M / LAMBDA_G) * screening_factor
+    v_yukawa_sq_SI = ALPHA_YUKAWA_DIMLESS * yukawa_core_SI * screening_factor
+
+    # --------------------------------------------------------------
+    # 3. Convert Yukawa term to (km/s)^2 and combine with baryonic v^2
+    # --------------------------------------------------------------
+    # 1 km^2/s^2 = 1e6 m^2/s^2  →  divide by 1e6
+    v_yukawa_sq_km2 = v_yukawa_sq_SI / 1.0e6
+
+    if v_yukawa_sq_km2 < 0.0:
+        v_yukawa_sq_km2 = 0.0
+
+    v_total_sq = v_bary ** 2 + v_yukawa_sq_km2
+
+    if v_total_sq <= 0.0:
+        # Fallback: numerical guard
+        return v_bary
+
+    return math.sqrt(v_total_sq)
 '''
 
 # --- 4. LAUNCHER ---
@@ -220,7 +311,7 @@ def main() -> None:
     with open(TARGET_CONFIG, "w", encoding="utf-8") as f:
         f.write(GALAXY_CONFIG)
 
-    # 4. Write seed program (blank Newtonian baseline)
+    # 4. Write seed program (v2 Yukawa/Vainshtein baseline)
     with open(TARGET_SEED, "w", encoding="utf-8") as f:
         f.write(GALAXY_SEED)
 

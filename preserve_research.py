@@ -3,10 +3,11 @@ import shutil
 import datetime
 
 # --- CONFIG ---
-# We look for your two major wins
+# We look for your major wins
 SOURCE_DIRS = {
     "Project_1_Dark_Energy": "examples/solve",
-    "Project_2_Hubble_Tension": "examples/hubble_tension"
+    "Project_2_Hubble_Tension": "examples/hubble_tension",
+    "Project_3_Galaxy_Rotation": "examples/galaxy_rotation",  # NEW: galaxy rotation project
 }
 
 # Where to save (Your Desktop)
@@ -55,9 +56,15 @@ def preserve():
             print(f"   - Saved evaluator logic")
 
         # 4. Any Plots (The Proof)
-        # We look for png files in the root or source dir
+        # Look for png files in the repo root that match this project family
         for file in os.listdir(os.getcwd()):
-            if file.endswith(".png") and "hubble" in file.lower():
+            if (
+                file.endswith(".png") and
+                (
+                    "hubble" in file.lower() or
+                    "galaxy" in file.lower()   # NEW: capture galaxy rotation plots
+                )
+            ):
                 shutil.copy(file, os.path.join(target_dir, file))
                 print(f"   - Saved plot: {file}")
 
