@@ -14,9 +14,9 @@ max_tasks_per_child: 1
 # ---------------------------------------------------------
 llm:
   primary_model: "qwen2.5-coder:7b"
-  primary_model_weight: 0.9   # Rely mostly on the smarter coder for syntax
+  primary_model_weight: 0.4   # Rely mostly on the smarter coder for syntax
   secondary_model: "rnj-1:8b" 
-  secondary_model_weight: 0.1 # Use Rnj occasionally for specialized math checks
+  secondary_model_weight: 0.6 # Use Rnj occasionally for specialized math checks
   
   api_base: "http://localhost:11434/v1"
   api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
