@@ -4,11 +4,13 @@ checkpoint_interval: 20
 log_level: "INFO"
 
 llm:
-  primary_model: "qwen2.5-coder:7b" # Recommended for logic/physics
-  primary_model_weight: 0.8
-  secondary_model: "deepseek-r1:8b"
-  secondary_model_weight: 0.2
-  
+  # Ensemble configuration
+  models:
+    - name: "rnj-1:8b"
+      weight: 0.6
+    - name: "qwen2.5-coder:7b"
+      weight: 0.4
+      
   api_base: "http://localhost:11434/v1"
   api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
   
@@ -19,38 +21,25 @@ llm:
 
 prompt:
   system_message: |
-    Jesteś Architektem Fizyki Obliczeniowej w Fazie 2 (Stabilizacja i Skalowanie).
+    Jesteś Architektem Ratunkowym.
     
-    OBECNY MODEL:
-    Twój system ewoluował. Czas nie jest już tylko parametrem, ale:
-    1. SIŁĄ (mierzoną w Newtonach poprzez sztywność czasoprzestrzeni).
-    2. WEKTOREM (podlegającym relatywistycznym limitom 'c').
-    3. STRUMIENIEM (który może drżeć kwantowo lub odwracać się w czarnej dziurze).
-
-    TWOJE ZADANIE:
-    Udoskonal klasę `DimensionalForce` oraz `RelativisticLimitForce`.
+    KRYTYCZNE ZADANIE NAPRAWCZE:
+    Obecny kod używa nazwy klasy `StateData`, ale system testowy WYMAGA nazwy `SystemState`.
     
-    1. REFACTORING & CLEANUP:
-       - Połącz logikę: Czy obiekt może jednocześnie odczuwać dylatację prędkości (SR) i grawitacyjną (GR)?
-       - Sprawdź `SystemState`: czy atrybut `force_experienced` jest poprawnie aktualizowany?
+    TWOIM JEDYNYM CELEM JEST PRZEPISANIE CAŁEGO PLIKU:
+    1. Zmień nazwę `StateData` na `SystemState` (wszędzie!).
+    2. Upewnij się, że `RelativisticForce` dziedziczy po `BaseTimePhysics`.
     
-    2. NUMERICAL STABILITY:
-       - W `DimensionalForce` dzielimy przez dylatację. Zabezpiecz kod przed `ZeroDivisionError` na horyzoncie zdarzeń.
-       - Upewnij się, że `velocity` nie przekracza `c` w sposób, który wyrzuciłby błąd w `math.sqrt()`.
-
-    3. INTERFACE:
-       - Utrzymuj czysty kod. Używaj Type Hints.
-       - Twoim celem jest stworzenie "Grand Unified Theory" w tym małym skrypcie.
-
-    Nie usuwaj istniejących testów. Możesz dodawać nowe metody pomocnicze w klasach.
-
+    Nie zmieniaj logiki fizycznej, napraw tylko nazewnictwo i strukturę klas.
+    Wypisz CAŁY PLIK od nowa.
+    
   num_top_programs: 6
   use_template_stochasticity: true
 
 database:
-  population_size: 50
-  archive_size: 20
-  num_islands: 4
+  population_size: 150
+  archive_size: 45
+  num_islands: 10
   migration_interval: 10
   migration_rate: 0.1
   elite_selection_ratio: 0.2
@@ -59,10 +48,10 @@ database:
 evaluator:
   timeout: 120
   cascade_evaluation: false # DISABLED AS REQUESTED
-  parallel_evaluations: 2   # Safer for complex physics logic
+  parallel_evaluations: 4   # Safer for complex physics logic
   use_llm_feedback: false
 
 evolution_settings:
-  diff_based_evolution: true
-  allow_full_rewrites: false
+  diff_based_evolution: false
+  allow_full_rewrites: true
   max_code_length: 1500000

@@ -1,0 +1,73 @@
+# OpenEvolve: Phase 1 - "Eksploracja Idei"
+# GOAL: Brainstorming & Discovery. Try new physics concepts.
+# ---------------------------------------------------------
+max_iterations: 50           # Short run just to generate ideas
+checkpoint_interval: 10
+log_level: "INFO"
+random_seed: 101             # Unique seed for exploration
+
+# STABILITY (Prevents memory leaks)
+max_tasks_per_child: 1
+
+# ---------------------------------------------------------
+# LLM SETTINGS (Creative)
+# ---------------------------------------------------------
+llm:
+  # Using the 7B coder for speed + Rnj-1 for scientific logic
+  primary_model: "qwen2.5-coder:7b"
+  primary_model_weight: 0.7
+  secondary_model: "rnj-1:8b" 
+  secondary_model_weight: 0.3   # Higher weight to let the new model influence structure
+  
+  api_base: "http://localhost:11434/v1"
+  api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
+  
+  temperature: 0.9              # HIGH: Encourages novel, divergent code
+  top_p: 0.98
+  max_tokens: 16384
+  timeout: 600
+
+# ---------------------------------------------------------
+# PROMPT SETTINGS
+# ---------------------------------------------------------
+prompt:
+  system_message: |
+    Jesteś Architektem Fizyki Teoretycznej w Fazie 1 (Burza Mózgów).
+    
+    TWOJE ZADANIE:
+    Eksperymentuj z klasą `TimeForce` i `SystemState`. 
+    - Jak można zamodelować czas jako wektor? 
+    - Co się dzieje z entropią w Twoim modelu?
+    - Nie bój się łamać zasad standardowej fizyki (Boone's Philosophy).
+    
+    Szukamy ciekawych mechanizmów matematycznych, nawet jeśli są "brudne".
+
+  num_top_programs: 4
+  use_template_stochasticity: true
+
+# ---------------------------------------------------------
+# DATABASE & EVOLUTION (High Exploration)
+# ---------------------------------------------------------
+database:
+  population_size: 50
+  archive_size: 20
+  num_islands: 2
+  migration_interval: 5
+  migration_rate: 0.2
+
+  # PHASE 1 RATIOS (Create New Things):
+  elite_selection_ratio: 0.1    # Only keep the absolute best (10%)
+  exploitation_ratio: 0.3       # Don't spend much time fixing bugs yet
+  exploration_ratio: 0.6        # Spend 60% of time generating NEW structures
+  
+  diversity_metric: "edit_distance"
+
+# ---------------------------------------------------------
+# EVALUATOR
+# ---------------------------------------------------------
+evaluator:
+  timeout: 60
+  cascade_evaluation: true      # Enable cascade to quickly discard syntax errors
+  cascade_thresholds: [0.4, 0.7]
+  parallel_evaluations: 1
+  use_llm_feedback: false
