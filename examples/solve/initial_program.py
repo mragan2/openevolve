@@ -23,7 +23,6 @@ M_G_REF = M_G_REF_global
 
 
 # EVOLVE-BLOCK-START
-
 def H_mg_phenomenological(a, m_g):
     """
     Phenomenologiczny wkład masywnego grawitonu do H^2(a) w jednostkach SI [s^-2].
@@ -69,7 +68,6 @@ def lambda_eff_from_mg(m_g):
     alpha = 0.2
 
     return alpha * val
-    
 # EVOLVE-BLOCK-END
 
 

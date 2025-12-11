@@ -1,0 +1,77 @@
+# OpenEvolve: Phase 2 - "Horyzont Zdarzeń i Logika"
+max_iterations: 200          # Kontynuujemy od 100 do 200
+checkpoint_interval: 20
+log_level: "INFO"
+
+llm:
+  # MODEL 1: KREATYWNOŚĆ I STYL (480B)
+  primary_model: "qwen3-coder:480b-cloud"
+  primary_model_weight: 0.7
+  secondary_model: "deepseek-r1:8b-llama-distill-q4_K_M"
+  secondary_model_weight: 0.3
+  
+  api_base: "http://localhost:11434/v1"
+  api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
+  
+  temperature: 0.85
+  top_p: 0.95
+  max_tokens: 16384
+  timeout: 600
+
+prompt:
+  system_message: |
+    Jesteś Architektem Systemów Fizycznych w fazie zaawansowanej optymalizacji (Phase 2).
+    
+    STAN PROJEKTU:
+    Twoja biblioteka ewoluowała z prostej idei "czas to siła" do złożonego modelu 
+    uwzględniającego:
+      1. Relatywistykę (Time Dilation).
+      2. Horyzont Zdarzeń (Event Horizon) i odwrócenie strzałki czasu.
+      3. Subiektywne odczuwanie czasu (Wątek Boone'a i "Blur").
+
+    TWOJE ZADANIE W FAZIE 2:
+    Nie dodawaj już nowych, szalonych pomysłów. Skup się na **REFINE & ROBUSTNESS**:
+    
+    1. LOGIKA MATEMATYCZNA (Dla modelu Reasoning):
+       - Sprawdź poprawność implementacji `apply()` w klasie `EventHorizonForce`.
+       - Upewnij się, że przejście przez horyzont (dist < radius) jest obsługiwane 
+         bez błędów numerycznych (np. dzielenie przez zero).
+       - Myśl krok po kroku: czy `dt` na pewno powinno być ujemne? Jak to wpływa na `velocity`?
+
+    2. ARCHITEKTURA (Dla modelu 480B):
+       - Wprowadź wzorzec **Observer** (Obserwator), aby oddzielić fizykę od rejestrowania danych.
+       - Rozważ wydzielenie logiki całkowania (Integrator) do osobnych strategii (np. Euler vs Runge-Kutta),
+         jeśli to poprawi stabilność przy osobliwościach.
+
+    3. DOKUMENTACJA:
+       - Utrzymuj wysoki poziom filozoficznych docstringów (po polsku).
+       - Wyjaśnij w komentarzach "dlaczego" matematyka działa tak, a nie inaczej.
+
+    CRITICAL INSTRUCTION:
+    Myśl krok po kroku, analizując logikę fizyczną. Upewnij się, że mechanizm odwracania czasu wewnątrz czarnej dziury jest zaimplementowany w sposób stabilny (numerycznie) i całkowicie wolny od błędów.
+
+  num_top_programs: 6
+  use_template_stochasticity: true
+
+database:
+  population_size: 100
+  archive_size: 40
+  num_islands: 6
+  
+  # Zmiany dla Fazy 2 (Stabilizacja):
+  migration_interval: 30
+  migration_rate: 0.1          # Mniejsza migracja (izolujemy dobre rozwiązania)
+  elite_selection_ratio: 0.25
+  exploitation_ratio: 0.7      # 70% czasu ulepszamy to co mamy, zamiast szukać nowości
+
+evaluator:
+  timeout: 120
+  cascade_evaluation: true
+  cascade_thresholds: [0.6, 0.8]  # Podnosimy poprzeczkę! (Wymagamy wyższej jakości)
+  parallel_evaluations: 4
+  use_llm_feedback: false
+
+evolution_settings:
+  diff_based_evolution: true
+  allow_full_rewrites: false
+  max_code_length: 1000000     # Zwiększony limit, o który prosiłeś

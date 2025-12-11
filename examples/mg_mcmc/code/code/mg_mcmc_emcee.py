@@ -6,45 +6,26 @@ MCMC for Multi-Temporal Decay Cosmology (MTDC)
   based on comoving distance.
 - M_abs is FIXED to SH0ES: -19.253
 """
-import os
-import math
+
 import numpy as np
 from scipy.integrate import quad
 import emcee
-from pathlib import Path
-import sys
+import math
+import os
 
-# Import the evolved Hubble-tension MG block
-BASE_DIR = Path(__file__).resolve().parents[2]  # repo root
-HUBBLE_DIR = BASE_DIR / "examples" / "hubble_tension"
-sys.path.insert(0, str(HUBBLE_DIR))
+# ------------------------------------------------------------
+# 0. GLOBAL CONSTANTS
+# ------------------------------------------------------------
 
-from final_solution import H_mg_phenomenological as H_mg_EVOLVED
-
-# --- GLOBAL CONSTANTS ---
 c_global = 2.99792458e8
-hbar_global = 1.0545718e-34
-M_G_REF_global = 8.1e-69  # reference graviton mass [kg]
+c_km_s = 2.99792458e5
 
-# H0^2 magnitude (from scaffold)
-H0_SQ_MAG = 4.84e-36      # ~ (2.2e-18 s^-1)^2
-OMEGA_MG_MAG = 0.7        # target DE fraction from MG
+# Conversion: 1 Mpc ~ 3.26156 million light years
+# Lambda_g = 4.64 billion light years
+LAMBDA_G_LY = 4.64e9
+LAMBDA_G_MPC = LAMBDA_G_LY / 3.26156e6  # ~1422 Mpc
 
-# Aliases
-c = c_global
-hbar = hbar_global
-M_G_REF = M_G_REF_global
-
-
-def H_mg_phenomenological(a, m_g):
-    """
-    Thin wrapper around the evolved massive-graviton dark-energy block
-    defined in examples/hubble_tension/final_solution.py.
-
-    Returns H^2(a) in SI units [s^-2].
-    """
-    return H_mg_EVOLVED(a, m_g)
-
+M_ABS_FIXED = -19.253   # SH0ES absolute magnitude
 
 # ------------------------------------------------------------
 # 1. DATA: SN / BAO / CMB

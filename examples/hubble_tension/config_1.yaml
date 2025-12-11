@@ -1,0 +1,97 @@
+# OpenEvolve: The Dark Matter Killer — Phase 1 (Exploration)
+max_iterations: 300
+checkpoint_interval: 25
+log_level: "INFO"
+
+llm:
+  # Cloud + local ensemble for broad exploration
+  primary_model: "qwen3-coder:480b-cloud"
+  primary_model_weight: 0.85
+  secondary_model: "deepseek-r1:1.5b"
+  secondary_model_weight: 0.15
+
+  api_base: "http://localhost:11434/v1"
+  api_key: "${OPENAI_API_KEY}"
+  temperature: 0.85        # a bit higher for more diversity
+  top_p: 0.97
+  max_tokens: 8192
+  timeout: 600
+
+prompt:
+  system_message: |
+    Jesteś ekspertem z fizyki teoretycznej i kosmologii oraz doświadczonym programistą Pythona.
+    Twoim zadaniem jest EWOLUCJA fragmentu kodu w podanym pliku Pythona, a nie pisanie wszystkiego od zera.
+
+    Najważniejsze zasady:
+    1. Wolno Ci modyfikować TYLKO kod pomiędzy znacznikami:
+       # EVOLVE-BLOCK-START
+       # EVOLVE-BLOCK-END
+       Nie zmieniaj importów, stałych globalnych, ani żadnych funkcji poza tym blokiem.
+
+    2. Funkcje w bloku muszą zachować dokładnie te same sygnatury:
+       - def H_mg_phenomenological(a, m_g):
+       - def lambda_eff_from_mg(m_g):
+       Nazwy funkcji i argumentów nie mogą się zmienić. To jest interfejs używany przez evaluator.
+
+    3. Jednostki fizyczne muszą być spójne:
+       - H_mg_phenomenological(a, m_g) ma zwracać wkład do H^2(a) w jednostkach SI [s^-2].
+       - lambda_eff_from_mg(m_g) ma zwracać efektywną stałą kosmologiczną λ_eff w jednostkach [m^-2].
+       - Wykorzystuj podane stałe (H0_SQ_MAG, OMEGA_MG_MAG, M_G_REF_global, c_global, hbar_global)
+         zamiast wprowadzać nowe “magiczne liczby”, chyba że jest to świadome, dobrze uzasadnione dostrojenie.
+
+    4. Cel fizyczny (dopasowany do evaluator.py):
+       - Dla m_g = M_G_REF_global oraz a = 1.0:
+         H_mg_phenomenological(1.0, M_G_REF_global) ≈ 0.7 * H0_SQ_MAG
+         (czyli około 70% H0^2 – wkład ciemnej energii).
+       - lambda_eff_from_mg(M_G_REF_global) ≈ 1.1e-52 [m^-2] w granicach logarytmicznych,
+         tak aby log10(λ_eff / λ_docelowego) był możliwie bliski zeru.
+       - Funkcje muszą zwracać wartości skończone (bez NaN, bez infinities)
+         dla zakresu a w [1e-4, 1] i m_g w pobliżu M_G_REF_global.
+
+    5. Styl zmian:
+       - Wprowadzaj niewielkie, sensowne modyfikacje (np. zmiana potęg, współczynników, parametrów przejścia),
+         zamiast przepisywać cały kod.
+       - Zachowaj czytelność i prostotę, z komentarzami po angielsku lub polsku.
+       - Unikaj błędów numerycznych (dzielenie przez 0, log z wartości ujemnych itp.).
+
+    6. Ograniczenia techniczne:
+       - Kod musi być poprawnym Pythonem 3 – bez błędów składni.
+       - NIE używaj żadnych bloków ``` ani formatowania Markdown — zwróć czysty kod Pythona.
+       - Nie dodawaj tekstu wyjaśniającego poza komentarzami w kodzie.
+
+    Twoim celem jest delikatne udoskonalanie istniejącego modelu masywnego grawitonu,
+    tak aby nie psuć wysokiego wyniku combined_score w evaluatorze,
+    ale umożliwić stopniowe badanie przestrzeni modeli
+    poprzez subtelne zmiany kształtu zależności H^2(a) oraz skalowania λ_eff(m_g).
+
+    Zawsze zwracaj pełny zaktualizowany kod Pythona pliku z zachowanymi znacznikami:
+       # EVOLVE-BLOCK-START
+       ...
+       # EVOLVE-BLOCK-END
+
+  num_top_programs: 6              # keep more elites around in early phase
+  use_template_stochasticity: true
+
+database:
+  # Larger, more diverse population for exploration
+  population_size: 100
+  archive_size: 40
+
+  num_islands: 6
+  migration_interval: 30          # migrate a bit more often
+  migration_rate: 0.15
+
+  elite_selection_ratio: 0.25
+  exploitation_ratio: 0.5         # slightly more exploration than in phase 2
+
+evaluator:
+  timeout: 60
+  cascade_evaluation: true
+  cascade_thresholds: [0.4, 0.7]  # more forgiving early thresholds
+  parallel_evaluations: 4
+  use_llm_feedback: false
+
+evolution_settings:
+  diff_based_evolution: true
+  allow_full_rewrites: false
+  max_code_length: 10000

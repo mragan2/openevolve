@@ -1,0 +1,102 @@
+# --- SYSTEM PROMPT (The "Soul" of the project) ---
+SYS_MSG: |
+    Jesteś Architektem Systemów Fizycznych w fazie zaawansowanej optymalizacji (Phase 2).
+    
+    STAN PROJEKTU:
+    Twoja biblioteka ewoluowała z prostej idei "czas to siła" do złożonego modelu 
+    uwzględniającego:
+      1. Relatywistykę (Time Dilation).
+      2. Horyzont Zdarzeń (Event Horizon) i odwrócenie strzałki czasu.
+      3. Subiektywne odczuwanie czasu (Wątek Boone'a i "Blur").
+
+    TWOJE ZADANIE W FAZIE 2:
+    Nie dodawaj już nowych, szalonych pomysłów. Skup się na **REFINE & ROBUSTNESS**:
+    
+    1. LOGIKA MATEMATYCZNA (Dla modelu Reasoning):
+       - Sprawdź poprawność implementacji `apply()` w klasie `EventHorizonForce`.
+       - Upewnij się, że przejście przez horyzont (dist < radius) jest obsługiwane 
+         bez błędów numerycznych (np. dzielenie przez zero).
+       - Myśl krok po kroku: czy `dt` na pewno powinno być ujemne? Jak to wpływa na `velocity`?
+
+    2. ARCHITEKTURA (Dla modelu 480B):
+       - Wprowadź wzorzec **Observer** (Obserwator), aby oddzielić fizykę od rejestrowania danych.
+       - Rozważ wydzielenie logiki całkowania (Integrator) do osobnych strategii (np. Euler vs Runge-Kutta),
+         jeśli to poprawi stabilność przy osobliwościach.
+
+    3. DOKUMENTACJA:
+       - Utrzymuj wysoki poziom filozoficznych docstringów (po polsku).
+       - Wyjaśnij w komentarzach "dlaczego" matematyka działa tak, a nie inaczej.
+
+    CRITICAL INSTRUCTION:
+    Myśl krok po kroku, analizując logikę fizyczną. Upewnij się, że mechanizm odwracania czasu wewnątrz czarnej dziury jest zaimplementowany w sposób stabilny (numerycznie) i całkowicie wolny od błędów.
+
+# --- FILE STRUCTURE ---
+CODEBASE_PATH: 'src/'
+# Assuming your main file is named 'initial_program.py' or similar in the input folder
+INIT_FILE_DATA: {filename: 'initial_program.py', language: 'python'}
+EVAL_FILE_NAME: 'evaluator.py'
+EVAL_TIMEOUT: 180
+
+# --- RESOURCES ---
+MAX_MEM_BYTES: 1000000000
+MEM_CHECK_INTERVAL_S: 0.1
+
+# --- EVOLUTION PARAMETERS ---
+EVOLVE_CONFIG: {
+    fitness_key: 'COMBINED_SCORE',
+    num_epochs: 200,                # Increased to 200 as per your Phase 2 plan
+    ckpt: 5,
+    max_size: 100,                  # Matching 'population_size'
+    init_pop: 6,
+    exploration_rate: 0.3, 
+    selection_policy: 'roulette', 
+    selection_kwargs: {roulette_by_rank: True},
+    early_stopping_rounds: 100,
+    num_islands: 6, 
+    migration_topology: 'ring', 
+    migration_interval: 30, 
+    migration_rate: 0.1,
+    meta_prompting: True, 
+    use_embedding: False, 
+    use_map_elites: False,
+    num_inspirations: 3,
+    max_chat_depth: 3
+}
+
+# --- MODEL ENSEMBLE (Hybrid: Poet + Engineer) ---
+ENSEMBLE: [
+    # Primary Model: Qwen 480B (The "Poet" - 60% weight)
+    {
+        model_name: 'qwen3-coder:480b-cloud', 
+        temp: 0.85, 
+        top_p: 0.95, 
+        retries: 3, 
+        weight: 0.6, 
+        verify_ssl: False,
+        api_base: 'http://localhost:11434/v1',
+        api_key: 'ollama'
+    },
+    # Secondary Model: DeepSeek R1 (The "Reasoning Engineer" - 40% weight)
+    {
+        model_name: 'deepseek-r1:8b-llama-distill-q4_K_M', 
+        temp: 0.85, 
+        top_p: 0.95, 
+        retries: 3, 
+        weight: 0.4, 
+        verify_ssl: False,
+        api_base: 'http://localhost:11434/v1',
+        api_key: 'ollama'
+    }
+]
+
+# --- AUXILIARY MODELS ---
+SAMPLER_AUX_LM: {model_name: 'qwen2.5-coder:7b', temp: 0.7, top_p: 0.95, retries: 3, weight: 1, verify_ssl: False}
+EMBEDDING: {model_name: 'qwen2.5-coder:7b', retries: 3, verify_ssl: False}
+
+# --- MAP ELITES CONFIG (Optional) ---
+MAP_ELITES: {
+    elite_map_type: 'grid',
+    features: [
+        {name: 'feat1', min_val: 0, max_val: 1, num_bins: 10}
+    ]
+}

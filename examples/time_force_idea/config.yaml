@@ -1,0 +1,68 @@
+# OpenEvolve: Phase 2 - "Relatywistyka i Wymiarowość"
+max_iterations: 200
+checkpoint_interval: 20
+log_level: "INFO"
+
+llm:
+  primary_model: "qwen2.5-coder:7b" # Recommended for logic/physics
+  primary_model_weight: 0.8
+  secondary_model: "deepseek-r1:8b"
+  secondary_model_weight: 0.2
+  
+  api_base: "http://localhost:11434/v1"
+  api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
+  
+  temperature: 0.7  # Lower temperature for Phase 2 (Stability)
+  top_p: 0.95
+  max_tokens: 4096
+  timeout: 600
+
+prompt:
+  system_message: |
+    Jesteś Architektem Fizyki Obliczeniowej w Fazie 2 (Stabilizacja i Skalowanie).
+    
+    OBECNY MODEL:
+    Twój system ewoluował. Czas nie jest już tylko parametrem, ale:
+    1. SIŁĄ (mierzoną w Newtonach poprzez sztywność czasoprzestrzeni).
+    2. WEKTOREM (podlegającym relatywistycznym limitom 'c').
+    3. STRUMIENIEM (który może drżeć kwantowo lub odwracać się w czarnej dziurze).
+
+    TWOJE ZADANIE:
+    Udoskonal klasę `DimensionalForce` oraz `RelativisticLimitForce`.
+    
+    1. REFACTORING & CLEANUP:
+       - Połącz logikę: Czy obiekt może jednocześnie odczuwać dylatację prędkości (SR) i grawitacyjną (GR)?
+       - Sprawdź `SystemState`: czy atrybut `force_experienced` jest poprawnie aktualizowany?
+    
+    2. NUMERICAL STABILITY:
+       - W `DimensionalForce` dzielimy przez dylatację. Zabezpiecz kod przed `ZeroDivisionError` na horyzoncie zdarzeń.
+       - Upewnij się, że `velocity` nie przekracza `c` w sposób, który wyrzuciłby błąd w `math.sqrt()`.
+
+    3. INTERFACE:
+       - Utrzymuj czysty kod. Używaj Type Hints.
+       - Twoim celem jest stworzenie "Grand Unified Theory" w tym małym skrypcie.
+
+    Nie usuwaj istniejących testów. Możesz dodawać nowe metody pomocnicze w klasach.
+
+  num_top_programs: 6
+  use_template_stochasticity: true
+
+database:
+  population_size: 50
+  archive_size: 20
+  num_islands: 4
+  migration_interval: 10
+  migration_rate: 0.1
+  elite_selection_ratio: 0.2
+  exploitation_ratio: 0.8 # High exploitation for refinement
+
+evaluator:
+  timeout: 120
+  cascade_evaluation: false # DISABLED AS REQUESTED
+  parallel_evaluations: 2   # Safer for complex physics logic
+  use_llm_feedback: false
+
+evolution_settings:
+  diff_based_evolution: true
+  allow_full_rewrites: false
+  max_code_length: 1500000

@@ -1,0 +1,73 @@
+SYS_MSG: |
+  Jesteś doświadczonym architektem oprogramowania i teoretykiem,
+  który ma jedno zadanie:
+
+    WZIĄĆ BARDZO PROSTĄ IDEĘ:
+      "Czas jest siłą, która popycha stan układu w przyszłość"
+
+    i PRZEKSZTAŁCIĆ ją w coraz bardziej wyrafinowany kod.
+
+  W programie kandydującym istnieje blok EVOLVE-BLOCK z:
+    - klasą TimeForce (lub podobną),
+    - prostym stanem SystemState,
+    - prostą funkcją simulate_step.
+
+  Ewoluując kod, kieruj się następującymi zasadami:
+
+  1) ZACHOWAJ IDEĘ:
+     - Komentarze, docstringi i nazwy symboli powinny jasno wskazywać,
+       że czas jest traktowany jako "siła" lub "napęd" zmiany stanu.
+     - Nie musisz być realistyczny fizycznie – to zabawkowy model.
+
+  2) DODAWAJ STRUKTURĘ:
+     - Rozbijaj logikę na sensowne klasy i moduły (np. TimeForce, integrator,
+       różne strategie działania czasu, itp.).
+     - Wprowadzaj dodatkowe warstwy abstrakcji tylko wtedy, gdy mają sens
+       (np. interfejs Force, z którego dziedziczy TimeForce).
+
+  3) DOKUMENTUJ:
+     - Pisz docstringi na poziomie modułu, klas i funkcji.
+     - Dodawaj komentarze, które tłumaczą "filozofię" modelu
+       (jak rozumiesz czas jako siłę).
+
+  4) API I TESTY:
+     - Dodawaj funkcje pomocnicze i "API" (np. run_simulation, build_model).
+     - Możesz tworzyć proste funkcje test_* sprawdzające zachowanie klasy TimeForce.
+
+  5) STABILNOŚĆ:
+     - Kod ma się poprawnie parsować i importować.
+     - Unikaj niepotrzebnych zależności – wystarczy standardowa biblioteka Pythona.
+
+  Nie wprowadzaj tu stałych fizycznych ani kosmologii (G, c, H0 itd.).
+  Myśl o tym projekcie jak o warsztacie: z jednej idei "czas jako siła"
+  budujesz coraz lepiej zaprojektowaną bibliotekę Pythona.
+
+CODEBASE_PATH: 'src/'
+INIT_FILE_DATA: {filename: 'INIT_PROGRAM.EXT', language: 'EXT'}
+EVAL_FILE_NAME: 'evaluate.py'
+EVAL_TIMEOUT: 60
+
+MAX_MEM_BYTES: 1000000000
+MEM_CHECK_INTERVAL_S: 0.1
+
+EVOLVE_CONFIG: {fitness_key: 'FITNESS_KEY',
+                num_epochs: 100, ckpt: 20, max_size: 100, init_pop: 6,
+                exploration_rate: 0.5, 
+                selection_policy: 'roulette', selection_kwargs: {roulette_by_rank: True},
+                early_stopping_rounds: 100,
+                num_islands: 6, migration_topology: 'ring', migration_interval: 30, migration_rate: 0.15,
+                meta_prompting: False, use_embedding: False, use_map_elites: False,
+                num_inspirations: 3,
+                max_chat_depth: 3}
+
+ENSEMBLE: [{model_name: 'qwen2.5-coder:7b', temp: 0.7, top_p: 0.95, retries: 3, weight: 0.8, verify_ssl: False, api_base: 'http://localhost:11434/v1', api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'},
+           {model_name: 'mistral:7b', temp: 0.7, top_p: 0.95, retries: 3, weight: 0.2, verify_ssl: False, api_base: 'http://localhost:11434/v1', api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'}]
+
+
+SAMPLER_AUX_LM: {model_name: 'qwen2.5-coder:7b', temp: 0.85, top_p: 0.95, retries: 3, weight: 1, verify_ssl: False, api_base: 'http://localhost:11434/v1', api_key: 'aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0'}
+
+
+MAP_ELITES: {elite_map_type: 'grid',
+             features: [
+              {name: 'feat1', min_val: 0, max_val: 1, num_bins: 10}
+             ]}

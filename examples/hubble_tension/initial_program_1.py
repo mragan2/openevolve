@@ -24,64 +24,59 @@ M_G_REF = M_G_REF_global
 
 # EVOLVE-BLOCK-START
 
-# Uproszczone parametry startowe
-F_H_SEED      = 1.0000  # Dokładnie 1.0 dla prostoty
-F_LAMBDA_SEED = 0.9960  # Lekko dostrojony
+# Optimized parameters for enhanced fitness and improved slope dynamics
+F_H_SEED      = 0.99995   # Improved H0 matching precision
+F_LAMBDA_SEED = 0.999999999 # Enhanced lambda scaling precision
 
 def H_mg_phenomenological(a, m_g):
-    """
-    Fenomenologiczny wkład masywnego grawitonu do H^2(a) w jednostkach [s^-2].
-    """
-    # Późny Wszechświat: H0 (SH0ES) ~ 73 km/s/Mpc
+    """Phenomenological contribution of massive graviton to H^2(a) [s^-2]."""
     H0_LATE_SI = 2.365e-18
-    # Idealny wkład masywnego grawitonu do H^2 dzisiaj
     base = 0.7 * (H0_LATE_SI ** 2)
-
-    # Uproszczony kształt w funkcji a - bez logarytmu dla mniejszej złożoności
-    eps_a  = 0.0092  # Lekko dostrojony
+    
+    # Evolving shape with improved slope strength
+    eps_a  = 0.059  # Increased for stronger slope dynamics
     a_safe = max(a, 1e-6)
-    shape  = a_safe ** (-eps_a)
-
-    # Uproszczone skalowanie po masie
+    # Enhanced logarithmic correction for early universe behavior
+    log_corr = 1.0 + 0.0037 * math.log(max(a_safe, 1e-10))
+    shape  = (a_safe ** (-eps_a)) * log_corr
+    
+    # Mass scaling around reference graviton mass
     mass_ratio = m_g / M_G_REF_global
     if mass_ratio <= 0:
         mass_factor = 1.0
     else:
         log_ratio = math.log(max(mass_ratio, 1e-30))
-        # Prostsza funkcja przejścia bez tanh
-        mass_factor = 1.0 + 0.012 * log_ratio / (1.0 + abs(log_ratio))
-
-    # Zabezpieczenie przed zbyt dużymi odchyłami
-    mass_factor = max(0.94, min(1.06, mass_factor))
-
+        # Enhanced mass factor with stronger tanh response and simplified quadratic term
+        mass_factor = 1.0 + 0.075 * math.tanh(1.31 * log_ratio) + 0.0051 * (log_ratio ** 2) * math.exp(-0.35*abs(log_ratio))
+    
+    mass_factor = max(0.70, min(1.30, mass_factor))
     return F_H_SEED * base * shape * mass_factor
 
 
 def lambda_eff_from_mg(m_g):
-    """
-    Efektywna stała kosmologiczna λ_eff(m_g) w jednostkach [m^-2].
-    """
+    """Effective cosmological constant λ_eff(m_g) [m^-2]."""
     lambda_base = 1.1e-52
     mass_ratio  = m_g / M_G_REF_global
-
+    
     if mass_ratio <= 0:
         return lambda_base * 1e-20
-
-    exponent = 2.020  # Lekko dostrojony
+    
+    # Mass dependence scaling
+    exponent = 2.43
     lam = lambda_base * (mass_ratio ** exponent)
-
-    log_ratio  = math.log(max(mass_ratio, 1e-30))
-    # Uproszczona korekcja bez arcus tangensa
-    correction = 1.0 + 0.0075 * log_ratio
-    lam *= max(0.3, min(4.0, correction))
-
-    # Globalne skalowanie seeda
+    
+    if mass_ratio > 0:
+        log_ratio = math.log(max(mass_ratio, 1e-30))
+        # Enhanced logarithmic correction with stability terms - simplified
+        correction = 1.0 + 0.031 * log_ratio + 0.0043 * math.atan(0.28 * log_ratio) + 0.0027 * math.sin(0.47 * log_ratio)
+        lam *= max(0.13, min(5.7, correction))
+    
     lam *= F_LAMBDA_SEED
-
+    
     if not math.isfinite(lam) or lam <= 0:
         safe_ratio = max(1e-20, min(1e20, mass_ratio))
         return lambda_base * (safe_ratio ** exponent)
-
+    
     return max(1e-60, lam)
 
 # EVOLVE-BLOCK-END
