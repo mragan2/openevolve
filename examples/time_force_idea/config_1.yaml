@@ -1,31 +1,50 @@
 # OpenEvolve: Phase 1 - "Eksploracja Idei"
 # GOAL: Brainstorming & Discovery. Try new physics concepts.
 # ---------------------------------------------------------
-max_iterations: 50           # Short run just to generate ideas
+
+# General settings
+max_iterations: 50                   # Short run just to generate ideas
 checkpoint_interval: 10
 log_level: "INFO"
-random_seed: 101             # Unique seed for exploration
+log_dir: "logs/phase1_exploration"
+random_seed: 101                     # Unique seed for exploration
 
-# STABILITY (Prevents memory leaks)
-max_tasks_per_child: 1
+# Evolution settings
+diff_based_evolution: false          # PHASE 1: False to allow full rewrites/drastic changes
+max_code_length: 12000
+
+# Early stopping settings
+early_stopping_patience: null        # Disabled: Force full exploration run
+convergence_threshold: 0.001
+early_stopping_metric: "combined_score"
 
 # ---------------------------------------------------------
 # LLM SETTINGS (Creative)
 # ---------------------------------------------------------
 llm:
-  # Using the 7B coder for speed + Rnj-1 for scientific logic
-  primary_model: "qwen2.5-coder:7b"
-  primary_model_weight: 0.7
-  secondary_model: "rnj-1:8b" 
-  secondary_model_weight: 0.3   # Higher weight to let the new model influence structure
-  
+  # Models for evolution
+  models:
+    - name: "qwen2.5-coder:7b"
+      weight: 0.7                    # Speed/Syntax
+    - name: "rnj-1:8b"
+      weight: 0.3                    # specialized math/logic
+
+  # Models for LLM feedback (Populated in case you enable it later)
+  evaluator_models:
+    - name: "qwen2.5-coder:7b"
+      weight: 1.0
+
+  # API configuration
   api_base: "http://localhost:11434/v1"
   api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
-  
-  temperature: 0.9              # HIGH: Encourages novel, divergent code
+
+  # Generation parameters
+  temperature: 0.9                   # HIGH: Encourages novel, divergent code
   top_p: 0.98
   max_tokens: 16384
   timeout: 600
+  retries: 3
+  retry_delay: 5
 
 # ---------------------------------------------------------
 # PROMPT SETTINGS
@@ -42,32 +61,71 @@ prompt:
     
     Szukamy ciekawych mechanizmów matematycznych, nawet jeśli są "brudne".
 
+  evaluator_system_message: "Jesteś krytykiem fizyki teoretycznej. Oceniaj nowatorstwo."
+
   num_top_programs: 4
-  use_template_stochasticity: true
+  num_diverse_programs: 2            # New: Inject diversity into context
+
+  # Template stochasticity
+  use_template_stochasticity: true   # Enabled for variation
+  template_variations:
+    improvement_suggestion:
+      - "Try a radical new approach for:"
+      - "mathematically, we could try:"
+      - "What if we broke the rules by:"
+
+  include_artifacts: true
+  max_artifact_bytes: 20480
+  
+  # Feature extraction settings
+  suggest_simplification_after_chars: 8000
+  include_changes_under_chars: 200
 
 # ---------------------------------------------------------
 # DATABASE & EVOLUTION (High Exploration)
 # ---------------------------------------------------------
 database:
+  db_path: "db/phase1.db"
+  in_memory: true
+  log_prompts: true
+
   population_size: 50
   archive_size: 20
-  num_islands: 2
+  num_islands: 2                     # Low island count for quick mixing
+  
   migration_interval: 5
   migration_rate: 0.2
 
-  # PHASE 1 RATIOS (Create New Things):
-  elite_selection_ratio: 0.1    # Only keep the absolute best (10%)
-  exploitation_ratio: 0.3       # Don't spend much time fixing bugs yet
-  exploration_ratio: 0.6        # Spend 60% of time generating NEW structures
-  
-  diversity_metric: "edit_distance"
+  # PHASE 1 RATIOS:
+  elite_selection_ratio: 0.1
+  exploitation_ratio: 0.3
+  exploration_ratio: 0.6             # High exploration
+
+  # MAP-Elites Configuration
+  feature_dimensions:
+    - "complexity"                   # Built-in metric
+    - "diversity"                    # Built-in metric
+  feature_bins: 10
+  diversity_reference_size: 20
 
 # ---------------------------------------------------------
 # EVALUATOR
 # ---------------------------------------------------------
 evaluator:
   timeout: 60
-  cascade_evaluation: true      # Enable cascade to quickly discard syntax errors
+  max_retries: 2
+  
+  cascade_evaluation: true           # Enable cascade to quickly discard syntax errors
   cascade_thresholds: [0.4, 0.7]
+  
   parallel_evaluations: 1
   use_llm_feedback: false
+
+# Evolution trace (Enabled for analysis of creative process)
+evolution_trace:
+  enabled: true
+  format: 'jsonl'
+  include_code: false
+  include_prompts: true
+  output_path: "logs/phase1_trace.jsonl"
+  buffer_size: 5

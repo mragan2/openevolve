@@ -1,186 +1,78 @@
 """
-Zabawkowy model: "czas jest siłą".
-IDEA: "Czas działa jak siła, która popycha stan układu w przyszłość."
+Zabawkowy model: "Czas to tylko liczba".
+IDEA: Startujemy od zera. Niech ewolucja wymyśli, czym jest czas.
 """
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Dict, Protocol, List
+from typing import List, Any, Dict
 import random
 import math
 
 # EVOLVE-BLOCK-START
-SIMPLE_IDEA = "Na horyzoncie zdarzeń czas, jaki znamy, kończy się."
+SIMPLE_IDEA = "Czas płynie do przodu, zazwyczaj."
 
-@dataclass(frozen=True)
+@dataclass
 class SystemState:
     """
-    Reprezentacja stanu układu dynamicznego.
-    Attributes:
-        value: Odległość od osobliwości (przestrzeń)
-        time: Czas lokalny układu
-        velocity: Prędkość radialna (zmiana odległości w czasie)
+    Prosty stan cząstki.
     """
-    value: float = 10.0
-    time: float = 0.0
-    velocity: float = 0.0
+    x: float = 10.0      # Pozycja
+    v: float = 0.0       # Prędkość
+    t: float = 0.0       # Czas
+    entropy: float = 0.0 # Miejsce na eksperymenty
 
-class Force(Protocol):
-    def apply(self, state: SystemState, dt: float) -> SystemState:
-        ...
-
-class TimeForce:
-    def __init__(self, strength: float = 1.0) -> None:
-        self.strength = float(strength)
-
-    def apply(self, state: SystemState, dt: float) -> SystemState:
-        new_time = state.time + dt
-        acceleration = self.strength
-        new_velocity = state.velocity + acceleration * dt
-        new_value = state.value + new_velocity * dt
-        return SystemState(value=new_value, time=new_time, velocity=new_velocity)
-
-class BlurredTimeForce(TimeForce):
+class BasicPhysics:
     """
-    Siła czasu z elementem stochastycznym (rozmyciem).
-    Filozofia Boone'a: Czas nie jest precyzyjny, jest 'rozmyty'.
+    Bardzo prosta, naiwna fizyka.
+    Brak relatywistyki, brak limitów, brak ochrony.
     """
-    def __init__(self, strength: float = 1.0, blur_factor: float = 0.1) -> None:
-        super().__init__(strength)
-        self.blur_factor = blur_factor
+    def __init__(self, gravity: float = 1.0):
+        self.gravity = gravity
 
-    def apply(self, state: SystemState, dt: float) -> SystemState:
-        # Dodajemy szum do kroku czasowego
-        noise = random.gauss(0, self.blur_factor * dt)
-        blurred_dt = max(0.0, dt + noise) # Czas nie może płynąć ujemnie w tym modelu (chyba że w czarnej dziurze)
+    def update(self, state: SystemState, dt: float) -> SystemState:
+        # 1. Zwykła fizyka (F = ma)
+        # Siła ciągnie do zera (jak grawitacja)
+        force = -self.gravity / (state.x * state.x + 0.1) # +0.1 żeby nie dzielić przez zero (jeszcze)
         
-        # Aplikujemy logikę bazową z rozmytym czasem
-        new_time = state.time + blurred_dt
-        acceleration = self.strength
-        new_velocity = state.velocity + acceleration * blurred_dt
-        new_value = state.value + new_velocity * blurred_dt
-        return SystemState(value=new_value, time=new_time, velocity=new_velocity)
-
-class EventHorizonForce(TimeForce):
-    """
-    Implementacja Czarnej Dziury i załamania czasoprzestrzeni.
-    """
-    def __init__(self, strength: float = 1.0, horizon_radius: float = 5.0) -> None:
-        super().__init__(strength)
-        self.horizon_radius = horizon_radius
-
-    def apply(self, state: SystemState, dt: float) -> SystemState:
-        dist = state.value
-        rs = self.horizon_radius
-
-        if dist > rs:
-            # NA ZEWNĄTRZ: Dylatacja czasu
-            # Używamy max(0.0, ...) dla stabilności numerycznej
-            dilation_factor = max(0.0, (dist - rs) / dist) if dist > 0 else 0.0
-            effective_dt = dt * dilation_factor
-            
-        elif dist == rs:
-            # NA HORYZONCIE
-            effective_dt = 0.0
-            
-        else:
-            # WEWNĄTRZ: Odwrócenie czasu
-            effective_dt = -dt
-
-        acceleration = self.strength
-        new_time = state.time + effective_dt
+        # 2. Naiwna integracja
+        new_v = state.v + force * dt
+        new_x = state.x + new_v * dt
         
-        # Fizyka Newtonowska z odwróconym czasem (wewnątrz horyzontu)
-        new_velocity = state.velocity + acceleration * effective_dt
-        new_value = state.value + new_velocity * effective_dt
+        # 3. Czas jest liniowy (NUDNE! Ewolucja powinna to zmienić)
+        new_t = state.t + dt
+        
+        # 4. Entropia jest stała (NUDNE!)
+        new_entropy = state.entropy
 
-        return SystemState(value=new_value, time=new_time, velocity=new_velocity)
+        return SystemState(x=new_x, v=new_v, t=new_t, entropy=new_entropy)
 
-class Observer:
-    """
-    Subiektywny obserwator odczuwający upływ czasu.
-    """
-    def __init__(self, perception_bias: float = 0.0):
-        self.perception_bias = perception_bias
+# Funkcje pomocnicze, które ewolucja może wykorzystać lub usunąć
+def calculate_energy(state: SystemState) -> float:
+    return 0.5 * state.v**2
 
-    def perceive_time(self, objective_dt: float) -> float:
-        """Zwraca subiektywnie odczuty czas."""
-        # Bias > 0: czas płynie szybciej
-        # Bias < 0: czas płynie wolniej (nuda/strach)
-        return objective_dt * (1.0 + self.perception_bias)
+def strange_attractor(x: float) -> float:
+    return math.sin(x)
 
-class Integrator:
-    def __init__(self, forces: List[Force]) -> None:
-        self.forces = forces
-    
-    def integrate(self, state: SystemState, dt: float) -> SystemState:
-        current_state = state
-        for force in self.forces:
-            current_state = force.apply(current_state, dt)
-        return current_state
+# Setup symulacji
+def run_simulation(steps: int = 100) -> List[SystemState]:
+    physics = BasicPhysics(gravity=5.0)
+    current_state = SystemState(x=10.0, v=0.5, t=0.0)
+    history = [current_state]
 
-# SETUP
-_DEFAULT_FORCE = EventHorizonForce(strength=1.0, horizon_radius=5.0)
-_DEFAULT_INTEGRATOR = Integrator([_DEFAULT_FORCE])
-
-def simulate_step(state: SystemState, dt: float) -> SystemState:
-    return _DEFAULT_INTEGRATOR.integrate(state, dt)
-
-def run_simulation(initial_state: SystemState, dt: float, steps: int) -> List[SystemState]:
-    states = [initial_state]
-    current = initial_state
     for _ in range(steps):
-        current = simulate_step(current, dt)
-        states.append(current)
-    return states
-
-def build_model(horizon: float = 5.0) -> tuple[Force, Integrator]:
-    force = EventHorizonForce(strength=1.0, horizon_radius=horizon)
-    integrator = Integrator([force])
-    return force, integrator
+        current_state = physics.update(current_state, dt=0.1)
+        history.append(current_state)
+        
+    return history
 # EVOLVE-BLOCK-END
 
-def test_time_reversal_inside_horizon() -> bool:
-    """Test czy czas cofa się wewnątrz czarnej dziury."""
-    horizon = 5.0
-    state = SystemState(value=2.0, time=10.0, velocity=0.0)
-    force = EventHorizonForce(strength=1.0, horizon_radius=horizon)
-    result = force.apply(state, dt=1.0)
-    return result.time < 10.0
-
-def test_blurred_time_force_variability() -> bool:
-    """Test czy BlurredTimeForce faktycznie wprowadza zmienność."""
-    state = SystemState(value=10.0, time=0.0, velocity=0.0)
-    force = BlurredTimeForce(strength=1.0, blur_factor=0.3)
-    times = []
-    for _ in range(100):
-        result = force.apply(state, dt=1.0)
-        times.append(result.time)
-        state = result
-    mean_time = sum(times) / len(times)
-    variance = sum((t - mean_time) ** 2 for t in times) / len(times)
-    return variance > 0.01
-
-def test_observer_subjectivity() -> Dict[str, Any]:
-    """Test subiektywnego doświadczenia czasu."""
-    objective_dt = 1.0
-    observers = [
-        Observer(perception_bias=0.0),
-        Observer(perception_bias=0.2),
-        Observer(perception_bias=-0.2),
-    ]
-    results = {}
-    for i, observer in enumerate(observers):
-        results[f"observer_{i}"] = observer.perceive_time(objective_dt)
-    return results
-
-def demo() -> Dict[str, Any]:
-    initial = SystemState(value=10.0, time=0.0, velocity=0.0)
-    states = run_simulation(initial, dt=0.1, steps=100)
+def demo():
+    results = run_simulation(20)
+    final = results[-1]
     return {
-        "final_time": states[-1].time,
-        "test_reversal": test_time_reversal_inside_horizon(),
-        "test_blur": test_blurred_time_force_variability(),
-        "test_observer": test_observer_subjectivity()
+        "final_pos": final.x,
+        "final_time": final.t,
+        "is_stable": abs(final.x) < 1000.0
     }
 
 if __name__ == "__main__":

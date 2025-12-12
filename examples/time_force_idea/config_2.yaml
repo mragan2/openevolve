@@ -1,30 +1,51 @@
 # OpenEvolve: Phase 2 - "Stabilizacja i Logika"
 # GOAL: Refine the code. Fix DivisionByZero. Optimize logic.
 # ---------------------------------------------------------
-max_iterations: 200          # Long run to refine details
+
+# General settings
+max_iterations: 200                  # Long run to refine details
 checkpoint_interval: 20
 log_level: "INFO"
+log_dir: "logs/phase2_stable"
 random_seed: 42
 
-# STABILITY (Prevents memory leaks)
-max_tasks_per_child: 1
+# Stability Settings
+max_tasks_per_child: 1               # Prevent memory leaks
+
+# Evolution settings
+diff_based_evolution: true           # PHASE 2: True. Only apply small patches/diffs.
+max_code_length: 15000               # Allow slightly larger code for robust handling
+
+# Early stopping settings (Stop if we hit perfection)
+early_stopping_patience: 30
+convergence_threshold: 0.0001
+early_stopping_metric: "combined_score"
 
 # ---------------------------------------------------------
 # LLM SETTINGS (Strict & Logic)
 # ---------------------------------------------------------
 llm:
-  primary_model: "qwen2.5-coder:7b"
-  primary_model_weight: 0.4   # Rely mostly on the smarter coder for syntax
-  secondary_model: "rnj-1:8b" 
-  secondary_model_weight: 0.6 # Use Rnj occasionally for specialized math checks
+  # Models for evolution
+  models:
+    - name: "qwen3-coder:480b-cloud"
+      weight: 0.4                    # Syntax support                   # Specialized math checks (Primary for Phase 2)
   
+#    Models for LLM feedback
+#  evaluator_models:
+#    - name: "qwen3-coder:480b-cloud"
+#      weight: 1.0
+  
+  # API configuration
   api_base: "http://localhost:11434/v1"
   api_key: "aa249496fa974637a67ebe8f05be1e21.bfs5CdlZ_ocSK0O__Guty9w0"
   
-  temperature: 0.6            # LOW: Encourages correct, standard, bug-free code
+  # Generation parameters
+  temperature: 0.6                   # LOW: Encourages correct, standard, bug-free code
   top_p: 0.90
   max_tokens: 16384
   timeout: 600
+  retries: 5                         # Higher retries for stability
+  retry_delay: 10
 
 # ---------------------------------------------------------
 # PROMPT SETTINGS
@@ -41,35 +62,56 @@ prompt:
     2. Sprawdź limity prędkości 'c' w funkcjach - czy `math.sqrt()` nie dostaje ujemnych liczb?
     3. Nie dodawaj nowych funkcji/klas. Tylko naprawiaj i optymalizuj istniejące.
 
-  num_top_programs: 6
-  use_template_stochasticity: false # Consistency is key here
+  evaluator_system_message: "Jesteś inżynierem QA. Szukaj błędów numerycznych."
 
+  num_top_programs: 6
+  num_diverse_programs: 0            # Focus only on the best
+  use_template_stochasticity: false  # Consistency is key here
+
+  include_artifacts: true
+  
   # Clean Code Enforcers
   suggest_simplification_after_chars: 8000
   include_changes_under_chars: 200
+  concise_implementation_max_lines: 15
 
 # ---------------------------------------------------------
 # DATABASE & EVOLUTION (High Exploitation)
 # ---------------------------------------------------------
 database:
+  db_path: "db/phase2.db"
+  in_memory: true
+  log_prompts: false                 # Save space, don't log every prompt
+
   population_size: 50
   archive_size: 20
-  num_islands: 4
+  num_islands: 4                     # More islands to separate distinct stable solutions
   migration_interval: 10
   migration_rate: 0.1
 
-  # PHASE 2 RATIOS (Fix Existing Things):
-  elite_selection_ratio: 0.15   # Protect top 15% to prevent regression
-  exploitation_ratio: 0.80      # Spend 80% of time refining/fixing the best code
-  exploration_ratio: 0.05       # Only 5% random noise (very little "new" stuff)
-  
-  diversity_metric: "edit_distance"
+  # PHASE 2 RATIOS:
+  elite_selection_ratio: 0.15        # Protect top 15%
+  exploitation_ratio: 0.80           # Spend 80% time refining
+  exploration_ratio: 0.05            # Minimal random noise
+
+  # MAP-Elites Configuration
+  feature_dimensions:
+    - "complexity"
+    - "stability"                    # FIXED: Changed from 'performance' to 'stability'
+  feature_bins: 20                   # Granular bins
+  diversity_reference_size: 50
 
 # ---------------------------------------------------------
 # EVALUATOR
 # ---------------------------------------------------------
 evaluator:
   timeout: 120
-  cascade_evaluation: false     # DISABLE CASCADE: Thoroughly test every candidate
+  max_retries: 3
+  
+  cascade_evaluation: false          # DISABLE CASCADE: Thoroughly test every candidate
   parallel_evaluations: 1
   use_llm_feedback: false
+
+# Evolution trace
+evolution_trace:
+  enabled: false                     # Disabled for performance during long runs
